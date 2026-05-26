@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="32" height="32"
+     viewBox="4.974504 5.236399 22.312836 22.312836">
+  <defs>
+    <radialGradient id="g0" cx="16.660089" cy="16.392817" r="4.5436606"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="matrix(1 0 0 2.2352941 -0.52916667 -20.24995)">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.9" stop-color="#60a5fa" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0.93"/>
+    </radialGradient>
+
+    <radialGradient id="g1" cx="16.660089" cy="16.392817" r="4.5436606"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="matrix(1 0 0 2.2352941 -33.052906 -20.511844)">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.9" stop-color="#60a5fa" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0.93"/>
+    </radialGradient>
+
+    <radialGradient id="g2" cx="16.660089" cy="16.392817" r="4.5436606"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="matrix(1 0 0 2.2352941 -16.845276 -13.645009)">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.81" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.9" stop-color="#60a5fa" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0.93"/>
+    </radialGradient>
+
+    <radialGradient id="g3" cx="16.660089" cy="16.392817" r="4.5436606"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="matrix(1 0 0 2.2352941 -39.657847 -36.827954)">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.9" stop-color="#60a5fa" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0.93"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="16.130922" cy="16.392817" rx="4.5436606" ry="10.156418" fill="url(#g0)"/>
+  <ellipse cx="-16.392817" cy="16.130922" rx="4.5436606" ry="10.156418" transform="rotate(-90)" fill="url(#g1)"/>
+  <ellipse cx="-0.18518682" cy="22.997757" rx="4.5436606" ry="10.156418" transform="rotate(-45)" fill="url(#g2)"/>
+  <ellipse cx="-22.997757" cy="-0.18518682" rx="4.5436606" ry="10.156418" transform="rotate(-135)" fill="url(#g3)"/>
+</svg>

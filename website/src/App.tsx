@@ -7,6 +7,7 @@ import {
 } from "chart.js";
 import marketData from "../../data/processed/MARKET_ADJUSTED_VALUE.json";
 import assessedData from "../../data/processed/TOT_VALUE.json";
+import { withBaseUrl } from "./lib/baseUrl";
 
 ChartJS.register(...registerables);
 ChartJS.defaults.font.family = "'Spline Sans Mono Variable', monospace";
@@ -390,9 +391,9 @@ function App() {
     <div className="page-shell">
       <header>
         <nav className="container">
-          <a className="brand" href="/" aria-label="Go home">
+          <a className="brand" href={withBaseUrl("/")} aria-label="Go home">
             <span className="logo-mark" aria-hidden="true">
-              <img src="/image.png" alt="" />
+              <img src={withBaseUrl("image.png")} alt="" />
             </span>
             <strong>Utah Home Values</strong>
           </a>
@@ -410,7 +411,11 @@ function App() {
               <div className="hero-main-title-row">
                 <h1>Utah Home Values</h1>
                 <div className="hero-image-frame hero-image-frame-mobile">
-                  <img src="/image.png" alt="" className="hero-image" />
+                  <img
+                    src={withBaseUrl("image.png")}
+                    alt=""
+                    className="hero-image"
+                  />
                 </div>
               </div>
               <p>
@@ -422,7 +427,11 @@ function App() {
               className="hero-image-frame hero-image-frame-desktop"
               aria-hidden="true"
             >
-              <img src="/image.png" alt="" className="hero-image" />
+              <img
+                src={withBaseUrl("image.png")}
+                alt=""
+                className="hero-image"
+              />
             </div>
           </section>
 

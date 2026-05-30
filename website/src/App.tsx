@@ -153,6 +153,32 @@ function geoEyebrow(geoType: GeoType) {
   return geoType === "county" ? "County" : "Census Place / CDP";
 }
 
+function usePrefersDarkMode() {
+  const [isDark, setIsDark] = useState(
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDark(event.matches);
+    };
+
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, []);
+
+  return isDark;
+}
+
+function getRootCssValue(name: string, fallback: string) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+
+  return value || fallback;
+}
+
 function PercentileChart({ points }: { points: PercentilePoint[] }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartJS<
@@ -160,12 +186,28 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
     Array<{ x: number; y: number }>
   > | null>(null);
 
+  const colorSchemeSignal = usePrefersDarkMode();
+
   useEffect(() => {
     if (!canvasRef.current) {
       return undefined;
     }
 
     chartRef.current?.destroy();
+
+    const colors = {
+      font: getRootCssValue(
+        "--font-mono",
+        "'Spline Sans Mono Variable', monospace",
+      ),
+      grid: getRootCssValue("--border", "#d6deea"),
+      text: getRootCssValue("--muted", "#657083"),
+      line: getRootCssValue("--accent-strong", "#0d5e8a"),
+      point: getRootCssValue("--surface", "#ffffff"),
+      highlight: getRootCssValue("--warm", "#be6b2d"),
+      tooltipBackground: getRootCssValue("--surface", "#ffffff"),
+      tooltipText: getRootCssValue("--text", "#151923"),
+    };
 
     const highlightPercentiles = new Set(
       HIGHLIGHTS.map((item) => item.percentile),
@@ -184,16 +226,16 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
               x: point.percentile,
               y: point.value,
             })),
-            borderColor: "#0d5e8a",
+            borderColor: colors.line,
             borderWidth: 1,
             pointBackgroundColor: points.map((point) =>
               highlightPercentiles.has(point.percentile)
-                ? "#be6b2d"
-                : "#ffffff",
+                ? colors.highlight
+                : colors.point,
             ),
-            pointBorderColor: "#0d5e8a",
-            pointHoverBackgroundColor: "#be6b2d",
-            pointHoverBorderColor: "#0d5e8a",
+            pointBorderColor: colors.line,
+            pointHoverBackgroundColor: colors.highlight,
+            pointHoverBorderColor: colors.line,
             pointRadius: points.map((point) =>
               highlightPercentiles.has(point.percentile) ? 3 : 2,
             ),
@@ -214,11 +256,16 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
             display: false,
           },
           tooltip: {
+            backgroundColor: colors.tooltipBackground,
+            borderColor: colors.grid,
+            borderWidth: 1,
+            bodyColor: colors.tooltipText,
             bodyFont: {
-              family: "'Spline Sans Mono Variable', monospace",
+              family: colors.font,
             },
+            titleColor: colors.tooltipText,
             titleFont: {
-              family: "'Spline Sans Mono Variable', monospace",
+              family: colors.font,
             },
             callbacks: {
               title: () => "",
@@ -235,11 +282,12 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
             min: 0,
             max: 100,
             grid: {
-              color: "#dbe3ee",
+              color: colors.grid,
             },
             ticks: {
+              color: colors.text,
               font: {
-                family: "'Spline Sans Mono Variable', monospace",
+                family: colors.font,
               },
               callback: (value) => {
                 const numericValue = Number(value);
@@ -257,11 +305,12 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
           },
           y: {
             grid: {
-              color: "#dbe3ee",
+              color: colors.grid,
             },
             ticks: {
+              color: colors.text,
               font: {
-                family: "'Spline Sans Mono Variable', monospace",
+                family: colors.font,
               },
               callback: (value) => formatCurrency(Number(value), true),
             },
@@ -276,7 +325,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [points]);
+  }, [points, colorSchemeSignal]);
 
   return (
     <div className="chart-card">
@@ -502,9 +551,9 @@ function App() {
                   The Utah Housing Unit Inventory dataset is the initial source
                   of truth. Outlier records and non-single-family units are
                   filtered out; some townhomes and condos are kept if there is
-                  evidence that they are single-unit dwellings. From there, the
-                  parcels are grouped by region, county, and place, with count,
-                  mean value, and percentile ranks being computed.
+                  evidence that they are single-unit dwellings. The original
+                  assessed values are adjusted to estimated real market values
+                  based on actual sales data.
                 </p>
               </article>
               <article className="copy-card">
@@ -520,7 +569,7 @@ function App() {
                   appear.
                 </p>
               </article>
-              <article className="copy-card">
+              <article className="copy-card sources-card">
                 <h3>Sources</h3>
                 <p>
                   All parcel-level/value data are provided for public use by
@@ -531,6 +580,24 @@ function App() {
                   dataset. Parcels which correspond to single- and multi-family
                   housing units are aggregated by county assessors and submitted
                   to the dataset.
+                </p>
+                <p>
+                  Assessment/Sales Ratios are provided by the Utah State Tax
+                  Commission. The reference year depends on the year that the
+                  assessed value is associated with.{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2025.pdf">
+                    Davis, Morgan, Salt Lake, Tooele, and Weber Counties (2024
+                    data)
+                  </a>
+                  ,{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2024.pdf">
+                    Utah County (2023 data)
+                  </a>
+                  ,{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2023.pdf">
+                    Washington County (2022 data)
+                  </a>
+                  .
                 </p>
                 <p>
                   Place names and boundaries are provided by the U.S. Census

@@ -500,6 +500,10 @@ canvas:focus-visible {
   font-size: 1.15rem;
 }
 
+.sources-card {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 940px) {
   .hero-split,
   .control-bar,
@@ -529,6 +533,48 @@ canvas:focus-visible {
     min-width: 0;
   }
 
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --bg-gradient: #1d2440;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --surface: #121a2b;
+    --surface-soft: #172238;
+    --border: #243044;
+    --accent: #60a5fa;
+    --accent-strong: #60a5fa;
+    --accent-soft: #172b45;
+    --warm: #f59e0b;
+    --green: #22c55e;
+    --shadow: 0 22px 60px rgb(0 0 0 / 0.22);
+  }
+
+  header {
+    background: color-mix(in srgb, var(--surface), transparent 5%);
+  }
+
+  .segmented,
+  select,
+  .metric,
+  .chart-card {
+    background: color-mix(in srgb, var(--surface), var(--bg) 35%);
+  }
+
+  .segmented button {
+    color: var(--text);
+  }
+
+  .segmented button.active {
+    background: var(--accent);
+    color: #0b1220;
+  }
+
+  .chart-tooltip {
+    background: var(--surface);
+  }
 }
 
 @media (max-width: 760px) {

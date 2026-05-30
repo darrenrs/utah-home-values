@@ -1,0 +1,13 @@
+# Data artifacts
+/data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Node
+.vite/
+website/node_modules/
+website/dist/

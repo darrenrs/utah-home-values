@@ -17,7 +17,41 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 GDB_PATH = RAW_DATA_DIR / "HousingUnitInventory.gdb"
 GDB_LAYER_NAME = "HousingUnitInventory"
 COUNTY_QUALITY_PATH = CONFIG_DIR / "counties.yml"
-PLACE_SHAPEFILE_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_49_place.zip"
+SHAPEFILE_PLACE_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_49_place.zip"
+SHAPEFILE_ZCTA5_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_us_zcta520.zip"
+
+
+def join_shapefile(
+    hui_valid: gpd.GeoDataFrame,
+    path: Path,
+    column_mappings: dict[str, str],
+    id_col: str,
+):
+    group_cols = list(column_mappings.values())
+    shapes = gpd.read_file(
+        f"zip://{path}",
+        columns=[*column_mappings.keys(), "geometry"],
+    )
+    shapes = shapes.rename(columns=column_mappings)
+
+    assert shapes.crs is not None, f"{path.name} has no CRS set"
+
+    hui_points = hui_valid.to_crs(shapes.crs).copy()
+    hui_points["geometry"] = hui_points.geometry.representative_point()
+
+    joined = gpd.sjoin(
+        hui_points,
+        shapes,
+        how="left",
+        predicate="within",
+    ).drop(columns=["index_right"], errors="ignore")
+
+    matched = joined[joined[id_col].notna()]
+
+    return (
+        summarize_grouped_values(matched, group_cols, "TOT_VALUE"),
+        summarize_grouped_values(matched, group_cols, "MARKET_ADJUSTED_VALUE"),
+    )
 
 
 # Round value to nearest 1,000 (or 10^s)
@@ -95,11 +129,15 @@ def build_attribute_payload(
     wasatch_front_stats: pd.Series,
     county_stats: pd.DataFrame,
     place_stats: pd.DataFrame,
+    zcta5_stats: pd.DataFrame,
 ):
     return {
         "WasatchFront": stats_payload(wasatch_front_stats, "Wasatch Front"),
         "County": grouped_stats_payload(county_stats, "COUNTY", "COUNTY_NAMELSAD"),
         "Place": grouped_stats_payload(place_stats, "PLACE_GEOID", "PLACE_NAMELSAD"),
+        "ZCTA5": grouped_stats_payload(
+            zcta5_stats, "ZCTA5_GEOID", "ZCTA5_NAMELSAD"
+        ),
     }
 
 
@@ -199,39 +237,23 @@ def main():
     )
 
     # Join with spatial data
-    places = gpd.read_file(f"zip://{PLACE_SHAPEFILE_ZIP_PATH}")
+    column_mappings_place = {
+        "GEOID": "PLACE_GEOID",
+        "NAME": "PLACE_NAME",
+        "NAMELSAD": "PLACE_NAMELSAD",
+    }
 
-    places = places[["GEOID", "NAME", "NAMELSAD", "geometry"]].copy()
-    places = places.rename(
-        columns={
-            "GEOID": "PLACE_GEOID",
-            "NAME": "PLACE_NAME",
-            "NAMELSAD": "PLACE_NAMELSAD",
-        }
+    place_raw_stats, place_adjusted_stats = join_shapefile(
+        hui_valid, SHAPEFILE_PLACE_ZIP_PATH, column_mappings_place, "PLACE_GEOID"
     )
 
-    assert places.crs is not None, "HousingUnitInventory has no CRS set"
-    hui_points = hui_valid.to_crs(places.crs).copy()
-    hui_points["geometry"] = hui_points.geometry.representative_point()
+    column_mappings_zcta5 = {
+        "ZCTA5CE20": "ZCTA5_GEOID",
+        "GEOID20": "ZCTA5_NAMELSAD",
+    }
 
-    hui_places = gpd.sjoin(
-        hui_points,
-        places,
-        how="left",
-        predicate="within",
-    ).drop(columns=["index_right"], errors="ignore")
-
-    # Aggregate by place
-    place_raw_stats = summarize_grouped_values(
-        hui_places[hui_places["PLACE_GEOID"].notna()],
-        ["PLACE_GEOID", "PLACE_NAME", "PLACE_NAMELSAD"],
-        "TOT_VALUE",
-    )
-
-    place_adjusted_stats = summarize_grouped_values(
-        hui_places[hui_places["PLACE_GEOID"].notna()],
-        ["PLACE_GEOID", "PLACE_NAME", "PLACE_NAMELSAD"],
-        "MARKET_ADJUSTED_VALUE",
+    zcta5_raw_stats, zcta5_adjusted_stats = join_shapefile(
+        hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID"
     )
 
     write_json(
@@ -240,6 +262,7 @@ def main():
             wasatch_front_raw_stats,
             county_raw_stats,
             place_raw_stats,
+            zcta5_raw_stats,
         ),
     )
 
@@ -249,6 +272,7 @@ def main():
             wasatch_front_adjusted_stats,
             county_adjusted_stats,
             place_adjusted_stats,
+            zcta5_adjusted_stats,
         ),
     )
 

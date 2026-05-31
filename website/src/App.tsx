@@ -12,9 +12,9 @@ import { withBaseUrl } from "./lib/baseUrl";
 ChartJS.register(...registerables);
 ChartJS.defaults.font.family = "'Spline Sans Mono Variable', monospace";
 
-type GeoType = "wasatchFront" | "county" | "place";
+type GeoType = "wasatchFront" | "county" | "place" | "zcta5";
 type ValueMode = "market" | "assessed";
-type DataSection = "WasatchFront" | "County" | "Place";
+type DataSection = "WasatchFront" | "County" | "Place" | "ZCTA5";
 
 type ValueStats = {
   name: string;
@@ -27,6 +27,7 @@ type AttributeData = {
   WasatchFront: ValueStats;
   County: Record<string, ValueStats>;
   Place: Record<string, ValueStats>;
+  ZCTA5: Record<string, ValueStats>;
 };
 
 type GeographyOption = {
@@ -44,6 +45,7 @@ const GEO_TYPES = [
   { id: "wasatchFront", label: "Wasatch Front" },
   { id: "county", label: "County" },
   { id: "place", label: "Place / CDP" },
+  { id: "zcta5", label: "ZIP Code" },
 ] satisfies Array<{ id: GeoType; label: string }>;
 
 const VALUE_MODES = [
@@ -64,7 +66,7 @@ const DATASET = {
   assessed: assessedData as AttributeData,
 };
 
-function formatCurrency(value: number | undefined, compact = false) {
+function formatCurrency(value: number | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return "Not available";
   }
@@ -83,11 +85,16 @@ function formatNumber(value: number) {
 }
 
 function sectionForGeoType(geoType: GeoType): DataSection {
-  if (geoType === "wasatchFront") {
-    return "WasatchFront";
+  switch (geoType) {
+    case "wasatchFront":
+      return "WasatchFront";
+    case "county":
+      return "County";
+    case "place":
+      return "Place";
+    case "zcta5":
+      return "ZCTA5";
   }
-
-  return geoType === "county" ? "County" : "Place";
 }
 
 function getGeographyOptions(data: AttributeData, geoType: GeoType) {
@@ -147,11 +154,18 @@ function getTotalRecords(data: AttributeData) {
 }
 
 function geoEyebrow(geoType: GeoType) {
-  if (geoType === "wasatchFront") {
-    return "Region";
+  switch (geoType) {
+    case "wasatchFront":
+      return "Region";
+    case "county":
+      return "County";
+    case "place":
+      return "Place";
+    case "zcta5":
+      return "ZIP Code";
+    default:
+      return "Unknown";
   }
-
-  return geoType === "county" ? "County" : "Census Place / CDP";
 }
 
 function usePrefersDarkMode() {
@@ -313,7 +327,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
               font: {
                 family: colors.font,
               },
-              callback: (value) => formatCurrency(Number(value), true),
+              callback: (value) => formatCurrency(Number(value)),
             },
           },
         },

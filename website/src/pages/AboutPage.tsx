@@ -11,7 +11,7 @@ function AboutPage() {
           <div className="about-intro">
             <p className="eyebrow">Utah Home Values</p>
             <h1>Data/Methodology</h1>
-            <p>Data sources and methodology for Utah Home Values.</p>
+            <p>Data sources and methodology for Utah Home Values Explorer.</p>
           </div>
 
           <section className="page-section">
@@ -25,20 +25,29 @@ function AboutPage() {
                   non-single-family units are filtered out; some townhomes and
                   condos are kept if there is evidence that they are single-unit
                   dwellings. The original assessed values are adjusted to
-                  estimated real market values based on actual sales data.
+                  estimated real market values based on county-level
+                  assessment/sales ratios.
+                </p>
+                <p>
+                  Data from the American Community Survey are also used for a
+                  simple housing affordability analysis. The figures for median
+                  household income and percentage of occupied housing units that
+                  are owner occupied are collected for Utah's counties, cities,
+                  and ZIP Code Tabulation Areas (ZCTAs) and presented in the
+                  website.
                 </p>
               </article>
               <article className="copy-card">
-                <h3>Geography</h3>
+                <h3>Geographies</h3>
                 <p>
-                  To summarize by Place / CDP, all parcels are projected onto
+                  To summarize by Place / CDP, all parcels are projected onto a
                   Census place shapefile coordinate system, converted to a
                   representative point, and spatially joined to the place
                   polygon that contains it. This method is superior to the CITY
                   attribute in the Housing Unit Inventory dataset because it is
-                  immune to misclassification errors and adds Census-Designated
-                  Places (unincorporated communities) that would not otherwise
-                  appear.
+                  immune to misclassification errors and adds census-designated
+                  places (CDPs), which are unincorporated communities that would
+                  not otherwise appear.
                 </p>
               </article>
               <article className="copy-card sources-card">
@@ -56,9 +65,10 @@ function AboutPage() {
                   with Tooele, Morgan, and Washington counties.
                 </p>
                 <p>
-                  Assessment/Sales Ratios are provided by the Utah State Tax
+                  Assessment/Sales ratios are provided by the Utah State Tax
                   Commission. The reference year depends on the year that the
-                  assessed value is associated with.{" "}
+                  assessed value is associated with. Please refer to these
+                  documents for specific values:{" "}
                   <a href="https://files.tax.utah.gov/propertytax/srs/srs2025.pdf">
                     Davis, Morgan, Salt Lake, Tooele, and Weber Counties (2024
                     data)
@@ -78,6 +88,22 @@ function AboutPage() {
                   Bureau from the{" "}
                   <a href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2024.html">
                     2024 Census TIGER/Line Shapefiles
+                  </a>
+                  .
+                </p>
+                <p>
+                  American Community Survey data from the 2020-2024 5-year
+                  estimates are also provided by the U.S. Census Bureau via the{" "}
+                  <a href="https://www.census.gov/data/developers.html">
+                    Census API
+                  </a>
+                  . The tables used are{" "}
+                  <a href="https://data.census.gov/table?q=B19013">
+                    Median Household Income in the Past 12 Months (B19013)
+                  </a>{" "}
+                  and{" "}
+                  <a href="https://data.census.gov/table?q=B25003">
+                    Tenure (B25003)
                   </a>
                   .
                 </p>

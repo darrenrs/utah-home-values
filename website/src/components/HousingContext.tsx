@@ -58,6 +58,15 @@ function HousingContext({
   return (
     <section className="metric-section">
       <h3 className="metric-section-title">Housing Context</h3>
+      <p className="subheader-description">
+        The median home value / median household income ratio is a simple
+        measure of local affordability pressure. A higher ratio means home
+        values are high relative to local incomes. As a rough guide, ratios from
+        4.0 to 5.0 indicate high affordability pressure, 5.0 to 6.0 indicate
+        very high pressure, and ratios above 6.0 indicate severe price-income
+        strain. Median household income and owner-occupied housing share are
+        provided for additional context.
+      </p>
       <div className="context-grid">
         <article className="context-card">
           <h3>Median Household Income</h3>
@@ -75,7 +84,7 @@ function HousingContext({
         </article>
 
         <article className="context-card">
-          <h3>Home Value / Income</h3>
+          <h3>Median Home Value / Income</h3>
           <p className="context-value">{formatRatio(ratio)}</p>
           <p className="context-ci">
             90% CI: {formatRatio(ratioLower)}-{formatRatio(ratioUpper)}
@@ -83,7 +92,7 @@ function HousingContext({
         </article>
 
         <article className="context-card">
-          <h3>Owner-Occupied Housing Units</h3>
+          <h3>Owner-Occupied Housing Share</h3>
           <p className="context-value">
             {formatPercent(acsValues.ownerOccupiedPercent.estimate)}
           </p>

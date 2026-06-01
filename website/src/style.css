@@ -550,10 +550,6 @@ canvas:focus-visible {
   font-weight: 400;
 }
 
-.context-unavailable {
-  color: var(--muted);
-}
-
 .chart-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -592,7 +588,9 @@ canvas:focus-visible {
   min-height: 260px;
 }
 
-.explorer-note {
+.explorer-note,
+.context-unavailable,
+.subheader-description {
   color: var(--muted);
   font-size: 0.92rem;
 }

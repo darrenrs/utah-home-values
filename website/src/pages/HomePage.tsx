@@ -11,14 +11,14 @@ function HeroSection() {
     <section className="hero hero-split hero-split-main-page">
       <div className="stack hero-main-copy">
         <div className="hero-main-title-row">
-          <h1>Utah Home Values</h1>
+          <h1>Utah Home Values Explorer</h1>
           <div className="hero-image-frame hero-image-frame-mobile">
             <img src={withBaseUrl("image.png")} alt="" className="hero-image" />
           </div>
         </div>
         <p>
-          Browse and compare single-family home values of Utah's cities,
-          counties, and regions.
+          Browse and compare estimated single-family home values across Utah
+          cities, counties, ZIP codes, and regions.
         </p>
       </div>
       <div

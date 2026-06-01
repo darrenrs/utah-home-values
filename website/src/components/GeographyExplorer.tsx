@@ -401,7 +401,9 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
       <div className="chart-heading">
         <div>
           <h3>Percentile Curve</h3>
-          <p>Every point from the 1st to the 99th percentile.</p>
+          <p className="subheader-description">
+            Every point from the 1st to the 99th percentile.
+          </p>
         </div>
       </div>
       <div className="percentile-chart-frame">
@@ -603,7 +605,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
               {sampleSizeLevel !== "error" && (
                 <p className="summary-meta">
                   <strong>Count:</strong> {formatNumber(selected.n)},{" "}
-                  <strong>Average:</strong> {formatCurrency(selected.mean)}
+                  <strong>Mean:</strong> {formatCurrency(selected.mean)}
                 </p>
               )}
             </div>
@@ -632,6 +634,15 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
             <>
               <section className="metric-section">
                 <h3 className="metric-section-title">Home Value Percentiles</h3>
+                <p className="subheader-description">
+                  Percentiles show where home values fall within the selected
+                  area. For example, a 10th percentile home value of{" "}
+                  {formatCurrency(getPercentileValue(percentilePoints, 10))}{" "}
+                  means about 10% of homes are valued at or below{" "}
+                  {formatCurrency(getPercentileValue(percentilePoints, 10))}.
+                  The median is the 50th percentile, or the middle value in the
+                  distribution.
+                </p>
                 <div className="metric-grid">
                   {HIGHLIGHTS.map((item) => {
                     const value = getPercentileValue(

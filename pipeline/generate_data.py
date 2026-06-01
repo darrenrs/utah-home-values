@@ -3,22 +3,42 @@ import json
 import math
 import pandas as pd
 import pyogrio
+import re
 import yaml
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_DIR = PROJECT_ROOT / "config"
-DATA_DIR = PROJECT_ROOT / "data"
-RAW_DATA_DIR = DATA_DIR / "raw"
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 SHAPEFILES_DIR = RAW_DATA_DIR / "shapefiles"
-PROCESSED_DATA_DIR = DATA_DIR / "processed"
+WEBSITE_DIR = PROJECT_ROOT / "website"
+PROCESSED_DATA_DIR = WEBSITE_DIR / "public" / "data"
 
 GDB_PATH = RAW_DATA_DIR / "HousingUnitInventory.gdb"
 GDB_LAYER_NAME = "HousingUnitInventory"
 COUNTY_QUALITY_PATH = CONFIG_DIR / "counties.yml"
 SHAPEFILE_PLACE_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_49_place.zip"
 SHAPEFILE_ZCTA5_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_us_zcta520.zip"
+
+WASATCH_FRONT_ID = "region:wasatch-front"
+SCHEMA_VERSION = 1
+DATASET_FILENAMES = {
+    "geographies": "geographies.json",
+    "huiMarketAdjustedValues": "hui_market_adjusted_values.json",
+    "huiAssessedValues": "hui_assessed_values.json",
+    "acsValues": "acs_values.json",
+}
+
+
+def slugify(value: str):
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+def geography_id(namespace: str, source_id: str):
+    normalized_id = slugify(str(source_id)) if namespace == "county" else str(source_id)
+    return f"{namespace}:{normalized_id}"
 
 
 def join_shapefile(
@@ -48,10 +68,26 @@ def join_shapefile(
 
     matched = joined[joined[id_col].notna()]
 
-    return (
-        summarize_grouped_values(matched, group_cols, "TOT_VALUE"),
-        summarize_grouped_values(matched, group_cols, "MARKET_ADJUSTED_VALUE"),
+    # Places and ZIP codes may cross county lines. Use the county containing the
+    # largest number of matched home records as their comparison parent.
+    primary_counties = (
+        matched.groupby([id_col, "COUNTY"])
+        .size()
+        .reset_index(name="n")
+        .sort_values([id_col, "n", "COUNTY"], ascending=[True, False, True])
+        .drop_duplicates(id_col)
+        .set_index(id_col)["COUNTY"]
     )
+
+    raw_stats = summarize_grouped_values(matched, group_cols, "TOT_VALUE")
+    adjusted_stats = summarize_grouped_values(
+        matched, group_cols, "MARKET_ADJUSTED_VALUE"
+    )
+
+    for stats in (raw_stats, adjusted_stats):
+        stats["PRIMARY_COUNTY"] = stats[id_col].map(primary_counties)
+
+    return raw_stats, adjusted_stats
 
 
 # Round value to nearest 1,000 (or 10^s)
@@ -109,18 +145,17 @@ def clean_number(value):
     return numeric_value
 
 
-def stats_payload(row, name: str):
+def stats_payload(row):
     return {
-        "name": name,
         "n": int(row["n"]),
         "mean": clean_number(row["mean"]),
         "percentiles": [clean_number(value) for value in row["percentiles"]],
     }
 
 
-def grouped_stats_payload(df: pd.DataFrame, id_col: str, name_col: str):
+def grouped_stats_payload(df: pd.DataFrame, namespace: str, id_col: str):
     return {
-        str(row[id_col]): stats_payload(row, str(row[name_col]))
+        geography_id(namespace, row[id_col]): stats_payload(row)
         for row in df.to_dict(orient="records")
     }
 
@@ -132,18 +167,66 @@ def build_attribute_payload(
     zcta5_stats: pd.DataFrame,
 ):
     return {
-        "WasatchFront": stats_payload(wasatch_front_stats, "Wasatch Front"),
-        "County": grouped_stats_payload(county_stats, "COUNTY", "COUNTY_NAMELSAD"),
-        "Place": grouped_stats_payload(place_stats, "PLACE_GEOID", "PLACE_NAMELSAD"),
-        "ZCTA5": grouped_stats_payload(
-            zcta5_stats, "ZCTA5_GEOID", "ZCTA5_NAMELSAD"
-        ),
+        "Region": {WASATCH_FRONT_ID: stats_payload(wasatch_front_stats)},
+        "County": grouped_stats_payload(county_stats, "county", "COUNTY"),
+        "Place": grouped_stats_payload(place_stats, "place", "PLACE_GEOID"),
+        "ZCTA5": grouped_stats_payload(zcta5_stats, "zcta5", "ZCTA5_GEOID"),
     }
+
+
+def geography_payload(geography_type: str, name: str, parent_geography=None):
+    return {
+        "type": geography_type,
+        "name": name,
+        "parentGeography": parent_geography,
+    }
+
+
+def build_geography_catalog(
+    county_stats: pd.DataFrame,
+    place_stats: pd.DataFrame,
+    zcta5_stats: pd.DataFrame,
+    wasatch_front_counties: set[str],
+):
+    catalog = {
+        WASATCH_FRONT_ID: geography_payload("Region", "Wasatch Front"),
+    }
+
+    for row in county_stats.to_dict(orient="records"):
+        catalog[geography_id("county", row["COUNTY"])] = geography_payload(
+            "County",
+            row["COUNTY_NAMELSAD"],
+            WASATCH_FRONT_ID if row["COUNTY"] in wasatch_front_counties else None,
+        )
+
+    for row in place_stats.to_dict(orient="records"):
+        catalog[geography_id("place", row["PLACE_GEOID"])] = geography_payload(
+            "Place",
+            row["PLACE_NAME"],
+            geography_id("county", row["PRIMARY_COUNTY"]),
+        )
+
+    for row in zcta5_stats.to_dict(orient="records"):
+        catalog[geography_id("zcta5", row["ZCTA5_GEOID"])] = geography_payload(
+            "ZCTA5",
+            row["ZCTA5_NAMELSAD"],
+            geography_id("county", row["PRIMARY_COUNTY"]),
+        )
+
+    return catalog
 
 
 def write_json(path: Path, payload):
     with open(path, "w") as f:
         json.dump(payload, f, separators=(",", ":"))
+
+
+def build_manifest():
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "datasets": DATASET_FILENAMES,
+    }
 
 
 def main():
@@ -183,6 +266,12 @@ def main():
     # Join with county quality data
     with open(COUNTY_QUALITY_PATH, "r") as f:
         county_quality = yaml.safe_load(f)
+
+    wasatch_front_counties = {
+        county
+        for county, quality in county_quality.items()
+        if quality.get("is_valid") and quality.get("is_wasatch_front")
+    }
 
     #
     quality_df = (
@@ -257,7 +346,17 @@ def main():
     )
 
     write_json(
-        PROCESSED_DATA_DIR / "TOT_VALUE.json",
+        PROCESSED_DATA_DIR / "geographies.json",
+        build_geography_catalog(
+            county_raw_stats,
+            place_raw_stats,
+            zcta5_raw_stats,
+            wasatch_front_counties,
+        ),
+    )
+
+    write_json(
+        PROCESSED_DATA_DIR / DATASET_FILENAMES["huiAssessedValues"],
         build_attribute_payload(
             wasatch_front_raw_stats,
             county_raw_stats,
@@ -267,7 +366,7 @@ def main():
     )
 
     write_json(
-        PROCESSED_DATA_DIR / "MARKET_ADJUSTED_VALUE.json",
+        PROCESSED_DATA_DIR / DATASET_FILENAMES["huiMarketAdjustedValues"],
         build_attribute_payload(
             wasatch_front_adjusted_stats,
             county_adjusted_stats,
@@ -275,6 +374,8 @@ def main():
             zcta5_adjusted_stats,
         ),
     )
+
+    write_json(PROCESSED_DATA_DIR / "manifest.json", build_manifest())
 
 
 if __name__ == "__main__":

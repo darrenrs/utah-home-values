@@ -1,5 +1,6 @@
 # Data artifacts
 /data/
+/website/public/data/
 
 # Python
 __pycache__/
@@ -11,3 +12,7 @@ __pycache__/
 .vite/
 website/node_modules/
 website/dist/
+
+# fs
+.DS_Store
+Thumbs.db

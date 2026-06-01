@@ -8,6 +8,15 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE_PATH || "/",
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL("./index.html", import.meta.url)),
+          about: fileURLToPath(new URL("./about/index.html", import.meta.url)),
+          rank: fileURLToPath(new URL("./rank/index.html", import.meta.url)),
+        },
+      },
+    },
     server: {
       host: "0.0.0.0",
     },

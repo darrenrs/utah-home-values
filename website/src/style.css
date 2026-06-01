@@ -76,7 +76,7 @@ img {
 }
 
 button,
-select {
+input {
   font: inherit;
 }
 
@@ -151,6 +151,7 @@ nav > div {
 }
 
 main {
+  min-width: 0;
   padding-block: 3rem;
 }
 
@@ -170,6 +171,7 @@ footer a,
 
 .page-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
 }
 
@@ -244,7 +246,7 @@ footer a,
 
 .control-bar {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 1.1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 27.5%);
   gap: 1rem;
   padding: 1rem;
 }
@@ -279,7 +281,7 @@ footer a,
 }
 
 .geo-segmented {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .segmented button {
@@ -296,30 +298,7 @@ footer a,
   color: #ffffff;
 }
 
-select {
-  width: 100%;
-  min-height: 52px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background:
-    linear-gradient(45deg, transparent 50%, var(--accent-strong) 50%),
-    linear-gradient(135deg, var(--accent-strong) 50%, transparent 50%),
-    var(--surface-soft);
-  background-position:
-    calc(100% - 20px) 21px,
-    calc(100% - 14px) 21px,
-    0 0;
-  background-size:
-    6px 6px,
-    6px 6px,
-    100% 100%;
-  background-repeat: no-repeat;
-  color: var(--text);
-  appearance: none;
-  padding: 0.65rem 2.35rem 0.65rem 0.8rem;
-}
-
-select:focus,
+input:focus,
 button:focus-visible,
 a:focus-visible,
 canvas:focus-visible {
@@ -327,10 +306,97 @@ canvas:focus-visible {
   outline-offset: 2px;
 }
 
+.geography-selector-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.geography-selector-input {
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: 8px;
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 0.65rem 0.8rem;
+}
+
+.geography-selector-button {
+  width: 3rem;
+  border: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 8px;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  background: var(--surface-soft);
+}
+
+.geography-selector-arrow {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-right: 2px solid var(--accent-strong);
+  border-bottom: 2px solid var(--accent-strong);
+  transform: rotate(45deg) translateY(-0.2rem);
+}
+
+.geography-selector-popover {
+  width: var(--trigger-width);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.geography-selector-listbox {
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: 0.35rem;
+  padding-top: 0;
+}
+
+.geography-selector-heading {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.75rem 0.55rem 0.25rem;
+}
+
+.geography-selector-option {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 0.5rem 0.55rem;
+  text-align: left;
+}
+
+.geography-selector-option[data-focused],
+.geography-selector-option[data-hovered],
+.geography-selector-option[data-selected] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.geography-selector-empty {
+  color: var(--muted);
+  padding: 0.7rem 0.55rem;
+}
+
 .summary-panel {
   padding: 1.25rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
+}
+
+.data-status {
+  color: var(--muted);
 }
 
 .summary-head {
@@ -357,7 +423,8 @@ canvas:focus-visible {
   line-height: 1.05;
 }
 
-.metric p,
+.metric-value,
+.context-value,
 .stat-card strong,
 .chart-tooltip {
   font-family: var(--font-mono);
@@ -370,13 +437,81 @@ canvas:focus-visible {
   font-size: 0.95rem;
 }
 
-.metric-grid {
+.information-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 9px 10px;
+}
+
+.information-card-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin-top: 1px;
+}
+
+.information-card-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.information-card-text {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.information-card--warning {
+  background: #fff8d9;
+  border-color: #e3cf76;
+  color: #65530f;
+}
+
+.information-card--warning .information-card-icon svg {
+  color: #bc8a00;
+}
+
+.information-card--error {
+  background: #ffe9e8;
+  border-color: #e0a8a5;
+  color: #7a2020;
+}
+
+.information-card--error .information-card-icon svg {
+  color: #b43535;
+}
+
+.metric-section {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
-.metric {
+.metric-section-title {
+  color: var(--text);
+  font-family: var(--font-header);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.metric-grid,
+.context-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.context-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric,
+.context-card {
   display: grid;
   gap: 0.35rem;
   min-width: 0;
@@ -387,14 +522,16 @@ canvas:focus-visible {
   text-align: center;
 }
 
-.metric h3 {
+.metric h3,
+.context-card h3 {
   font-family: var(--font-header);
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--accent-strong);
 }
 
-.metric p {
+.metric-value,
+.context-value {
   color: var(--text);
   font-size: clamp(1.3rem, 2.125vw, 1.8rem);
   font-weight: 700;
@@ -402,8 +539,22 @@ canvas:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.metric-comparison,
+.context-ci {
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.context-unavailable {
+  color: var(--muted);
+}
+
 .chart-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -505,34 +656,31 @@ canvas:focus-visible {
 }
 
 @media (max-width: 940px) {
-  .hero-split,
   .control-bar,
   .method-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .metric-grid {
+  .metric-grid,
+  .context-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .context-card:nth-child(3) {
+    grid-column: 1 / -1;
   }
 
   .status-grid {
     grid-template-columns: 1fr;
   }
 
-  .chart-heading,
-  .summary-head,
-  .summary-tools {
+  .chart-heading {
     display: grid;
   }
-
-  .summary-tools {
-    justify-content: stretch;
-  }
-
-  .value-control {
-    min-width: 0;
-  }
-
 }
 
 @media (prefers-color-scheme: dark) {
@@ -557,8 +705,10 @@ canvas:focus-visible {
   }
 
   .segmented,
-  select,
+  .geography-selector-input,
+  .geography-selector-button,
   .metric,
+  .context-card,
   .chart-card {
     background: color-mix(in srgb, var(--surface), var(--bg) 35%);
   }
@@ -575,11 +725,48 @@ canvas:focus-visible {
   .chart-tooltip {
     background: var(--surface);
   }
+
+  .information-card--warning {
+    background: #332a0d;
+    border-color: #80671a;
+    color: #f5dfa0;
+  }
+
+  .information-card--warning .information-card-icon svg {
+    color: #e5b93f;
+  }
+
+  .information-card--error {
+    background: #351719;
+    border-color: #884448;
+    color: #f5b4b0;
+  }
+
+  .information-card--error .information-card-icon svg {
+    color: #e36969;
+  }
 }
 
 @media (max-width: 760px) {
+  .geo-segmented {
+    grid-template-columns: 1fr;
+  }
+
   .hero-split {
     grid-template-columns: 1fr;
+  }
+
+  .summary-head,
+  .summary-tools {
+    display: grid;
+  }
+
+  .summary-tools {
+    justify-content: stretch;
+  }
+
+  .value-control {
+    min-width: 0;
   }
 
   .hero-split-main-page {
@@ -628,12 +815,9 @@ canvas:focus-visible {
     font-size: clamp(2.25rem, 14vw, 3.3rem);
   }
 
-  .metric-grid {
+  .metric-grid,
+  .context-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .metric:nth-child(3) {
-    grid-column: 1 / -1;
   }
 
   .summary-panel,

@@ -16,5 +16,5 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "../data/processed/**/*.json"]
+  "include": ["src"]
 }

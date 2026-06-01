@@ -13,7 +13,6 @@ import type {
   ValueMode,
   ValueStats,
 } from "../data/loadData";
-import { formatCurrency, formatNumber } from "../lib/format";
 import GeographySelector, {
   type GeographyOption,
   type GeographyType,
@@ -50,6 +49,24 @@ const HIGHLIGHTS = [
 ];
 
 const WASATCH_FRONT_ID = "region:wasatch-front";
+
+function formatCurrency(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "Not available";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    minimumSignificantDigits: 2,
+    maximumSignificantDigits: 3,
+  }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
 
 function sectionForGeoType(geoType: GeographyType): DataSection {
   switch (geoType) {
@@ -181,8 +198,11 @@ function getParentComparison(
     return undefined;
   }
 
-  const difference = Math.round(((selectedValue - parentValue) / parentValue) * 100);
-  const signedDifference = difference >= 0 ? `+${difference}` : String(difference);
+  const difference = Math.round(
+    ((selectedValue - parentValue) / parentValue) * 100,
+  );
+  const signedDifference =
+    difference >= 0 ? `+${difference}` : String(difference);
 
   return `${signedDifference}% from ${parentName}`;
 }
@@ -590,11 +610,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
             <div className="summary-tools">
               <div className="control-group value-control">
                 <span className="control-label">Value</span>
-                <div
-                  className="segmented"
-                  role="group"
-                  aria-label="Value mode"
-                >
+                <div className="segmented" role="group" aria-label="Value mode">
                   {VALUE_MODES.map((item) => (
                     <button
                       key={item.id}
@@ -615,9 +631,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
           {sampleSizeLevel !== "error" && (
             <>
               <section className="metric-section">
-                <h3 className="metric-section-title">
-                  Home Value Percentiles
-                </h3>
+                <h3 className="metric-section-title">Home Value Percentiles</h3>
                 <div className="metric-grid">
                   {HIGHLIGHTS.map((item) => {
                     const value = getPercentileValue(

@@ -7,7 +7,7 @@ export function formatCurrency(value: number | undefined) {
     style: "currency",
     currency: "USD",
     notation: "compact",
-    minimumSignificantDigits: 2,
+    minimumSignificantDigits: 3,
     maximumSignificantDigits: 3,
   }).format(value);
 }

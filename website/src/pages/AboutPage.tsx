@@ -8,8 +8,13 @@ function AboutPage() {
 
       <main className="container">
         <div className="page-stack">
+          <div className="about-intro">
+            <p className="eyebrow">Utah Home Values</p>
+            <h1>Data/Methodology</h1>
+            <p>Data sources and methodology for Utah Home Values.</p>
+          </div>
+
           <section className="page-section">
-            <h2>Data / Methodology</h2>
             <div className="method-grid">
               <article className="copy-card">
                 <h3>Data Pipeline</h3>

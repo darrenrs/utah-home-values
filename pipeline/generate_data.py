@@ -4,9 +4,13 @@ import math
 import pandas as pd
 import pyogrio
 import re
+import tempfile
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
+from shapely.errors import GEOSException
+from shapely.geometry import Polygon, shape
+from shapely.validation import explain_validity
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,6 +34,9 @@ DATASET_FILENAMES = {
     "huiAssessedValues": "hui_assessed_values.json",
     "acsValues": "acs_values.json",
 }
+
+MAX_POLYGON_VERTICES = 10_000
+MAX_POLYGON_REPAIR_AREA_DELTA_RATIO = 0.01
 
 
 def slugify(value: str):
@@ -80,14 +87,84 @@ def join_shapefile(
     )
 
     raw_stats = summarize_grouped_values(matched, group_cols, "TOT_VALUE")
-    adjusted_stats = summarize_grouped_values(
-        matched, group_cols, "MARKET_ADJUSTED_VALUE"
-    )
+    adjusted_stats = summarize_grouped_values(matched, group_cols, "MARKET_ADJUSTED_VALUE")
 
     for stats in (raw_stats, adjusted_stats):
         stats["PRIMARY_COUNTY"] = stats[id_col].map(primary_counties)
 
     return raw_stats, adjusted_stats
+
+
+def load_county_quality():
+    with open(COUNTY_QUALITY_PATH, "r") as f:
+        return yaml.safe_load(f)
+
+
+def get_wasatch_front_counties(county_quality):
+    return {
+        county
+        for county, quality in county_quality.items()
+        if quality.get("is_valid") and quality.get("is_wasatch_front")
+    }
+
+
+def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
+    hui_raw = hui_raw.copy()
+    hui_raw["IS_OUG_CLEAN"] = pd.to_numeric(hui_raw["IS_OUG"], errors="coerce").fillna(0)
+    hui_candidate = hui_raw[
+        # Owner-unit-like residential records: single-family homes, townhomes, and condos
+        hui_raw["SUBTYPE"].isin(["single_family", "townhome", "condo"])
+        # Not an owned-unit grouping. Null is treated as non-OUG.
+        & (hui_raw["IS_OUG_CLEAN"].fillna(0) != 1)
+        # One dwelling unit represented by the record
+        & (hui_raw["UNIT_COUNT"] == 1)
+        # Plausible assessed value range
+        & (hui_raw["TOT_VALUE"] >= 10_000)
+        & (hui_raw["TOT_VALUE"] <= 20_000_000)
+        # Plausible building square footage range
+        & (hui_raw["TOT_BD_FT2"] >= 100)
+        & (hui_raw["TOT_BD_FT2"] <= 30_000)
+        # Plausible acreage
+        & (hui_raw["ACRES"] > 0)
+        & (hui_raw["ACRES"] <= 100)
+    ].copy()
+
+    quality_df = (
+        pd.DataFrame.from_dict(county_quality, orient="index")
+        .reset_index()
+        .rename(columns={"index": "COUNTY"})
+    )
+
+    hui_candidate = hui_candidate.merge(
+        quality_df,
+        on="COUNTY",
+        how="left",
+        validate="many_to_one",
+    )
+
+    hui_valid = hui_candidate[
+        (hui_candidate["is_valid"])
+        & (hui_candidate["APX_BLT_YR"].notna())
+        & (hui_candidate["APX_BLT_YR"] <= hui_candidate["latest_year_built_with_value"])
+        & (hui_candidate["assessment_sales_ratio"].notna())
+    ].copy()
+
+    hui_valid["MARKET_ADJUSTED_VALUE"] = (
+        hui_valid["TOT_VALUE"] / hui_valid["assessment_sales_ratio"]
+    )
+
+    return hui_valid
+
+
+def load_valid_housing_units():
+    hui_raw = gpd.read_file(GDB_PATH, layer=GDB_LAYER_NAME)
+    return filter_valid_housing_units(hui_raw, load_county_quality())
+
+
+def housing_representative_points(hui_valid: gpd.GeoDataFrame):
+    hui_points = hui_valid.copy()
+    hui_points["geometry"] = hui_points.geometry.representative_point()
+    return hui_points
 
 
 # Round value to nearest 1,000 (or 10^s)
@@ -100,9 +177,7 @@ def normalize_value(n: float, s=3):
 
 # Summarize a df of home records
 def summarize_values(df: pd.DataFrame, value_col: str):
-    percentiles = [
-        normalize_value(df[value_col].quantile(p / 100)) for p in range(1, 100)
-    ]
+    percentiles = [normalize_value(df[value_col].quantile(p / 100)) for p in range(1, 100)]
 
     return pd.Series(
         {
@@ -151,6 +226,98 @@ def stats_payload(row):
         "mean": clean_number(row["mean"]),
         "percentiles": [clean_number(value) for value in row["percentiles"]],
     }
+
+
+class InvalidPolygonError(ValueError):
+    pass
+
+
+def extract_polygon_geojson(geojson):
+    if not isinstance(geojson, dict):
+        raise InvalidPolygonError("Request body must be a GeoJSON Polygon")
+
+    geojson_type = geojson.get("type")
+
+    if geojson_type == "Polygon":
+        return geojson
+
+    if geojson_type == "Feature":
+        return extract_polygon_geojson(geojson.get("geometry"))
+
+    if geojson_type == "FeatureCollection":
+        features = geojson.get("features")
+        if not isinstance(features, list) or len(features) != 1:
+            raise InvalidPolygonError("GeoJSON FeatureCollection must contain exactly one Polygon")
+
+        return extract_polygon_geojson(features[0])
+
+    raise InvalidPolygonError("Request body must be a GeoJSON Polygon")
+
+
+def parse_polygon(polygon_geojson):
+    polygon_geojson = extract_polygon_geojson(polygon_geojson)
+
+    try:
+        polygon = shape(polygon_geojson)
+    except (AttributeError, GEOSException, TypeError, ValueError) as exc:
+        raise InvalidPolygonError("Invalid GeoJSON Polygon") from exc
+
+    if not isinstance(polygon, Polygon):
+        raise InvalidPolygonError("Request body must be a GeoJSON Polygon")
+
+    if polygon.is_empty:
+        raise InvalidPolygonError("Polygon must not be empty")
+
+    rings = [polygon.exterior, *polygon.interiors]
+    coordinates = [coordinate for ring in rings for coordinate in ring.coords]
+
+    if len(coordinates) > MAX_POLYGON_VERTICES:
+        raise InvalidPolygonError(f"Polygon must not exceed {MAX_POLYGON_VERTICES} vertices")
+
+    if any(not math.isfinite(value) for coordinate in coordinates for value in coordinate):
+        raise InvalidPolygonError("Polygon coordinates must be finite numbers")
+
+    min_x, min_y, max_x, max_y = polygon.bounds
+    if min_x < -180 or max_x > 180 or min_y < -90 or max_y > 90:
+        raise InvalidPolygonError("Polygon coordinates must be longitude and latitude")
+
+    if not polygon.is_valid:
+        repaired = polygon.buffer(0)
+        area_delta_ratio = (
+            abs(repaired.area - polygon.area) / repaired.area if repaired.area else math.inf
+        )
+
+        if (
+            not isinstance(repaired, Polygon)
+            or repaired.is_empty
+            or area_delta_ratio > MAX_POLYGON_REPAIR_AREA_DELTA_RATIO
+        ):
+            raise InvalidPolygonError(f"Invalid polygon geometry: {explain_validity(polygon)}")
+
+        polygon = repaired
+
+    return polygon
+
+
+def summarize_polygon(hui_points: gpd.GeoDataFrame, polygon_geojson):
+    if hui_points.crs is None:
+        raise ValueError("Housing unit geometries must have a CRS")
+
+    polygon_wgs84 = parse_polygon(polygon_geojson)
+    polygon = gpd.GeoSeries([polygon_wgs84], crs="EPSG:4326").to_crs(hui_points.crs)[0]
+
+    candidate_indexes = hui_points.sindex.query(polygon)
+    candidates = hui_points.iloc[candidate_indexes]
+    matched = candidates[candidates.geometry.within(polygon)]
+
+    return {
+        "assessed": stats_payload(summarize_values(matched, "TOT_VALUE")),
+        "marketAdjusted": stats_payload(summarize_values(matched, "MARKET_ADJUSTED_VALUE")),
+    }
+
+
+def load_polygon_summary_housing_points():
+    return housing_representative_points(load_valid_housing_units())
 
 
 def grouped_stats_payload(df: pd.DataFrame, namespace: str, id_col: str):
@@ -221,6 +388,23 @@ def write_json(path: Path, payload):
         json.dump(payload, f, separators=(",", ":"))
 
 
+def publish_json_payloads(output_dir: Path, payloads, validate_payloads=None):
+    if validate_payloads is not None:
+        validate_payloads(payloads)
+
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix=".generated-data-", dir=output_dir.parent) as staging_dir:
+        staging_path = Path(staging_dir)
+
+        for filename, payload in payloads.items():
+            write_json(staging_path / filename, payload)
+
+        for filename in payloads:
+            (staging_path / filename).replace(output_dir / filename)
+
+
 def build_manifest():
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -242,75 +426,18 @@ def main():
     print("GDB df Shape:")
     print(hui_raw.shape)
 
-    hui_raw["IS_OUG_CLEAN"] = pd.to_numeric(hui_raw["IS_OUG"], errors="coerce").fillna(
-        0
-    )
-    hui_candidate = hui_raw[
-        # Owner-unit-like residential records: single-family homes, townhomes, and condos
-        hui_raw["SUBTYPE"].isin(["single_family", "townhome", "condo"])
-        # Not an owned-unit grouping. Null is treated as non-OUG.
-        & (hui_raw["IS_OUG_CLEAN"].fillna(0) != 1)
-        # One dwelling unit represented by the record
-        & (hui_raw["UNIT_COUNT"] == 1)
-        # Plausible assessed value range
-        & (hui_raw["TOT_VALUE"] >= 10_000)
-        & (hui_raw["TOT_VALUE"] <= 20_000_000)
-        # Plausible building square footage range
-        & (hui_raw["TOT_BD_FT2"] >= 100)
-        & (hui_raw["TOT_BD_FT2"] <= 30_000)
-        # Plausible acreage
-        & (hui_raw["ACRES"] > 0)
-        & (hui_raw["ACRES"] <= 100)
-    ].copy()
-
-    # Join with county quality data
-    with open(COUNTY_QUALITY_PATH, "r") as f:
-        county_quality = yaml.safe_load(f)
-
-    wasatch_front_counties = {
-        county
-        for county, quality in county_quality.items()
-        if quality.get("is_valid") and quality.get("is_wasatch_front")
-    }
-
-    #
-    quality_df = (
-        pd.DataFrame.from_dict(county_quality, orient="index")
-        .reset_index()
-        .rename(columns={"index": "COUNTY"})
-    )
-
-    hui_candidate = hui_candidate.merge(
-        quality_df,
-        on="COUNTY",
-        how="left",
-        validate="many_to_one",
-    )
-
-    # Apply filters based on county quality data
-    hui_valid = hui_candidate[
-        (hui_candidate["is_valid"])
-        & (hui_candidate["APX_BLT_YR"].notna())
-        & (hui_candidate["APX_BLT_YR"] <= hui_candidate["latest_year_built_with_value"])
-        & (hui_candidate["assessment_sales_ratio"].notna())
-    ].copy()
-
-    hui_valid["MARKET_ADJUSTED_VALUE"] = (
-        hui_valid["TOT_VALUE"] / hui_valid["assessment_sales_ratio"]
-    )
+    county_quality = load_county_quality()
+    wasatch_front_counties = get_wasatch_front_counties(county_quality)
+    hui_valid = filter_valid_housing_units(hui_raw, county_quality)
 
     hui_wasatch_front = hui_valid[hui_valid["is_wasatch_front"]].copy()
 
     wasatch_front_raw_stats = summarize_values(hui_wasatch_front, "TOT_VALUE")
-    wasatch_front_adjusted_stats = summarize_values(
-        hui_wasatch_front, "MARKET_ADJUSTED_VALUE"
-    )
+    wasatch_front_adjusted_stats = summarize_values(hui_wasatch_front, "MARKET_ADJUSTED_VALUE")
 
     # Aggregate by county
     county_raw_stats = (
-        hui_valid.groupby("COUNTY")
-        .apply(lambda g: summarize_values(g, "TOT_VALUE"))
-        .reset_index()
+        hui_valid.groupby("COUNTY").apply(lambda g: summarize_values(g, "TOT_VALUE")).reset_index()
     )
     county_raw_stats["COUNTY_NAMELSAD"] = county_raw_stats["COUNTY"].map(
         lambda county: f"{county} County"
@@ -345,37 +472,36 @@ def main():
         hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID"
     )
 
-    write_json(
-        PROCESSED_DATA_DIR / "geographies.json",
-        build_geography_catalog(
-            county_raw_stats,
-            place_raw_stats,
-            zcta5_raw_stats,
-            wasatch_front_counties,
-        ),
+    geography_catalog = build_geography_catalog(
+        county_raw_stats,
+        place_raw_stats,
+        zcta5_raw_stats,
+        wasatch_front_counties,
     )
 
-    write_json(
-        PROCESSED_DATA_DIR / DATASET_FILENAMES["huiAssessedValues"],
-        build_attribute_payload(
-            wasatch_front_raw_stats,
-            county_raw_stats,
-            place_raw_stats,
-            zcta5_raw_stats,
-        ),
+    assessed_values = build_attribute_payload(
+        wasatch_front_raw_stats,
+        county_raw_stats,
+        place_raw_stats,
+        zcta5_raw_stats,
     )
 
-    write_json(
-        PROCESSED_DATA_DIR / DATASET_FILENAMES["huiMarketAdjustedValues"],
-        build_attribute_payload(
-            wasatch_front_adjusted_stats,
-            county_adjusted_stats,
-            place_adjusted_stats,
-            zcta5_adjusted_stats,
-        ),
+    market_adjusted_values = build_attribute_payload(
+        wasatch_front_adjusted_stats,
+        county_adjusted_stats,
+        place_adjusted_stats,
+        zcta5_adjusted_stats,
     )
 
-    write_json(PROCESSED_DATA_DIR / "manifest.json", build_manifest())
+    publish_json_payloads(
+        PROCESSED_DATA_DIR,
+        {
+            DATASET_FILENAMES["geographies"]: geography_catalog,
+            DATASET_FILENAMES["huiAssessedValues"]: assessed_values,
+            DATASET_FILENAMES["huiMarketAdjustedValues"]: market_adjusted_values,
+            "manifest.json": build_manifest(),
+        },
+    )
 
 
 if __name__ == "__main__":

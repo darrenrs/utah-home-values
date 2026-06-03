@@ -13,6 +13,7 @@ import type {
   ValueMode,
   ValueStats,
 } from "../data/loadData";
+import { withApiBaseUrl } from "../lib/apiUrl";
 import GeographySelector, {
   type GeographyOption,
   type GeographyType,
@@ -26,6 +27,11 @@ type PercentilePoint = {
   percentile: number;
   label: string;
   value: number;
+};
+
+type CustomAreaSummary = {
+  assessed: ValueStats;
+  marketAdjusted: ValueStats;
 };
 
 const GEO_TYPES = [
@@ -176,6 +182,49 @@ function normalizePercentiles(row: ValueStats) {
       value: Number(value),
     };
   });
+}
+
+function customAreaStatsForMode(
+  summary: CustomAreaSummary,
+  valueMode: ValueMode,
+) {
+  return valueMode === "market" ? summary.marketAdjusted : summary.assessed;
+}
+
+function isValueStats(value: unknown): value is ValueStats {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<ValueStats>;
+  return (
+    typeof candidate.n === "number" &&
+    typeof candidate.mean === "number" &&
+    Array.isArray(candidate.percentiles)
+  );
+}
+
+function isCustomAreaSummary(value: unknown): value is CustomAreaSummary {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<CustomAreaSummary>;
+  return (
+    isValueStats(candidate.assessed) && isValueStats(candidate.marketAdjusted)
+  );
+}
+
+function apiErrorMessage(payload: unknown, status: number) {
+  if (payload && typeof payload === "object" && "detail" in payload) {
+    const detail = (payload as { detail?: unknown }).detail;
+
+    if (typeof detail === "string") {
+      return detail;
+    }
+  }
+
+  return `Unable to analyze area (${status})`;
 }
 
 function getPercentileValue(points: PercentilePoint[], percentile: number) {
@@ -400,7 +449,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
     <div className="chart-card">
       <div className="chart-heading">
         <div>
-          <h3>Percentile Curve</h3>
+          <h4>Percentile Curve</h4>
           <p className="subheader-description">
             Every point from the 1st to the 99th percentile.
           </p>
@@ -482,6 +531,13 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   const [selectedId, setSelectedId] = useState(
     hashGeographyId ?? WASATCH_FRONT_ID,
   );
+  const [isCustomAreaAvailable, setIsCustomAreaAvailable] = useState(false);
+  const [isCustomAreaOpen, setIsCustomAreaOpen] = useState(false);
+  const [customAreaText, setCustomAreaText] = useState("");
+  const [customAreaError, setCustomAreaError] = useState<string>();
+  const [isAnalyzingCustomArea, setIsAnalyzingCustomArea] = useState(false);
+  const [customAreaSummary, setCustomAreaSummary] =
+    useState<CustomAreaSummary>();
 
   const activeData = datasets[valueMode];
   const rows = useMemo(
@@ -491,12 +547,22 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   const activeSelectedId = getSelectedStats(activeData, geoType, selectedId)
     ? selectedId
     : getDefaultSelection(rows, geoType);
-  const selected = getSelectedStats(activeData, geoType, activeSelectedId);
+  const standardSelected = getSelectedStats(
+    activeData,
+    geoType,
+    activeSelectedId,
+  );
+  const selected = customAreaSummary
+    ? customAreaStatsForMode(customAreaSummary, valueMode)
+    : standardSelected;
   const selectedMetadata = geographies[activeSelectedId];
-  const selectedLabel = selectedMetadata?.name ?? "";
-  const parentMetadata = selectedMetadata?.parentGeography
-    ? geographies[selectedMetadata.parentGeography]
-    : undefined;
+  const selectedLabel = customAreaSummary
+    ? "Custom Area"
+    : (selectedMetadata?.name ?? "");
+  const parentMetadata =
+    !customAreaSummary && selectedMetadata?.parentGeography
+      ? geographies[selectedMetadata.parentGeography]
+      : undefined;
   const parentStats =
     selectedMetadata?.parentGeography && parentMetadata
       ? activeData[parentMetadata.type][selectedMetadata.parentGeography]
@@ -517,13 +583,33 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   );
 
   useEffect(() => {
+    let cancelled = false;
+
+    fetch(withApiBaseUrl("/api/health"))
+      .then((response) => {
+        if (!cancelled && response.ok) {
+          setIsCustomAreaAvailable(true);
+        }
+      })
+      .catch(() => {
+        // Custom areas are optional, so a missing API should not affect the explorer.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const syncFromHash = () => {
       const nextSelectedId = getHashGeographyId(geographies);
 
       if (nextSelectedId) {
+        setCustomAreaSummary(undefined);
         setGeoType(geoTypeForSection(geographies[nextSelectedId].type));
         setSelectedId(nextSelectedId);
       } else {
+        setCustomAreaSummary(undefined);
         setGeoType("wasatchFront");
         setSelectedId(WASATCH_FRONT_ID);
       }
@@ -534,6 +620,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   }, [geographies]);
 
   const handleSelectionChange = (nextSelectedId: string) => {
+    setCustomAreaSummary(undefined);
     setSelectedId(nextSelectedId);
     updateHash(nextSelectedId);
   };
@@ -547,6 +634,11 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   };
 
   const handleValueModeChange = (nextValueMode: ValueMode) => {
+    if (customAreaSummary) {
+      setValueMode(nextValueMode);
+      return;
+    }
+
     const nextData = datasets[nextValueMode];
     const nextSection = sectionForGeoType(geoType);
     const stillExists = Boolean(nextData[nextSection][selectedId]);
@@ -559,6 +651,47 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
           geoType,
         ),
       );
+    }
+  };
+
+  const handleAnalyzeCustomArea = async () => {
+    setCustomAreaError(undefined);
+    setIsAnalyzingCustomArea(true);
+
+    try {
+      let polygon: unknown;
+
+      try {
+        polygon = JSON.parse(customAreaText);
+      } catch {
+        setCustomAreaError("Enter a valid GeoJSON Polygon.");
+        return;
+      }
+
+      const response = await fetch(withApiBaseUrl("/api/polygon"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(polygon),
+      });
+      const payload: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        setCustomAreaError(apiErrorMessage(payload, response.status));
+        return;
+      }
+
+      if (!isCustomAreaSummary(payload)) {
+        setCustomAreaError("The custom area API returned an invalid response.");
+        return;
+      }
+
+      setCustomAreaSummary(payload);
+    } catch {
+      setCustomAreaError("Unable to reach the custom area API.");
+    } finally {
+      setIsAnalyzingCustomArea(false);
     }
   };
 
@@ -594,13 +727,76 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
             onChange={handleSelectionChange}
           />
         </div>
+
+        {isCustomAreaAvailable && (
+          <div className="custom-area-control">
+            <button
+              type="button"
+              className="custom-area-toggle"
+              aria-controls="custom-area-selection"
+              aria-expanded={isCustomAreaOpen}
+              onClick={() => setIsCustomAreaOpen((isOpen) => !isOpen)}
+            >
+              <span>
+                {isCustomAreaOpen
+                  ? "Hide custom area selection"
+                  : "Custom area (advanced)"}
+              </span>
+              <span className="custom-area-toggle-arrow" aria-hidden="true" />
+            </button>
+            <div
+              className={`custom-area-disclosure${isCustomAreaOpen ? " is-open" : ""}`}
+              id="custom-area-selection"
+              aria-hidden={!isCustomAreaOpen}
+            >
+              <div className="custom-area-disclosure-inner">
+                <div className="custom-area-panel">
+                  <h2>Custom Area</h2>
+                  <p className="subheader-description">
+                    You can add a geography here. A simple tool to generate the
+                    code needed to make this work can be found on{" "}
+                    <a href="https://www.keene.edu/campus/maps/tool/">
+                      Keene State College's website
+                    </a>
+                    .
+                  </p>
+                  <textarea
+                    className="custom-area-textarea"
+                    placeholder="Paste a GeoJSON Polygon here"
+                    value={customAreaText}
+                    onChange={(event) => setCustomAreaText(event.target.value)}
+                  />
+                  <div className="custom-area-actions">
+                    <button
+                      type="button"
+                      className="custom-area-submit"
+                      disabled={isAnalyzingCustomArea}
+                      onClick={handleAnalyzeCustomArea}
+                    >
+                      {isAnalyzingCustomArea
+                        ? "Analyzing Area..."
+                        : "Analyze Area"}
+                    </button>
+                    {customAreaError && (
+                      <p className="custom-area-error" role="alert">
+                        {customAreaError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {selected && (
         <article className="summary-panel">
           <div className="summary-head">
             <div>
-              <p className="eyebrow">{geoEyebrow(geoType)}</p>
+              <p className="eyebrow">
+                {customAreaSummary ? "Custom Area" : geoEyebrow(geoType)}
+              </p>
               <h2>{selectedLabel}</h2>
               {sampleSizeLevel !== "error" && (
                 <p className="summary-meta">
@@ -660,7 +856,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
 
                     return (
                       <article key={item.percentile} className="metric">
-                        <h3>{item.label}</h3>
+                        <h4>{item.label}</h4>
                         <p className="metric-value">{formatCurrency(value)}</p>
                         {parentComparison && (
                           <p className="metric-comparison">
@@ -673,10 +869,12 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                 </div>
               </section>
 
-              <HousingContext
-                acsValues={acsValues.geographies[activeSelectedId]}
-                homeValueStats={selected}
-              />
+              {!customAreaSummary && (
+                <HousingContext
+                  acsValues={acsValues.geographies[activeSelectedId]}
+                  homeValueStats={selected}
+                />
+              )}
 
               {sampleSizeLevel !== "warning" && (
                 <PercentileChart points={percentilePoints} />

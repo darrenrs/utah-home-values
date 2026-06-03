@@ -219,7 +219,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
   const barHeading =
     queryMode === "homeValue"
       ? `Percentile rank of ${formatCurrency(numericHomeValue)}`
-      : `P${numericPercentile} home value`;
+      : `P${numericPercentile < 10 ? "0" : ""}${numericPercentile} home value`;
 
   return (
     <section className="rankings-shell">

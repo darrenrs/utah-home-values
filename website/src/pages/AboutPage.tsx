@@ -15,9 +15,10 @@ function AboutPage() {
           </div>
 
           <section className="page-section">
+            <h2>Data Pipeline</h2>
             <div className="method-grid">
               <article className="copy-card">
-                <h3>Data Pipeline</h3>
+                <h3 className="copy-card-title">Source Data</h3>
                 <p>
                   The Utah Housing Unit Inventory dataset, which includes
                   reliable data for seven primarily urban counties in Utah, is
@@ -28,17 +29,9 @@ function AboutPage() {
                   estimated real market values based on county-level
                   assessment/sales ratios.
                 </p>
-                <p>
-                  Data from the American Community Survey are also used for a
-                  simple housing affordability analysis. The figures for median
-                  household income and percentage of occupied housing units that
-                  are owner occupied are collected for Utah's counties, cities,
-                  and ZIP Code Tabulation Areas (ZCTAs) and presented in the
-                  website.
-                </p>
               </article>
               <article className="copy-card">
-                <h3>Geographies</h3>
+                <h3 className="copy-card-title">Geographic Assignment</h3>
                 <p>
                   To summarize by Place / CDP, all parcels are projected onto a
                   Census place shapefile coordinate system, converted to a
@@ -50,8 +43,25 @@ function AboutPage() {
                   not otherwise appear.
                 </p>
               </article>
-              <article className="copy-card sources-card">
-                <h3>Sources</h3>
+              <article className="copy-card copy-card-full">
+                <h3 className="copy-card-title">Housing Context</h3>
+                <p>
+                  Data from the American Community Survey are also used for a
+                  simple housing affordability analysis. The figures for median
+                  household income and percentage of occupied housing units that
+                  are owner occupied are collected for Utah's counties, cities,
+                  and ZIP Code Tabulation Areas (ZCTAs) and presented in the
+                  website.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section className="page-section">
+            <h2>Sources</h2>
+            <div className="method-grid">
+              <article className="copy-card">
+                <h3 className="copy-card-title">Housing Unit Inventory</h3>
                 <p>
                   All parcel-level/value data are provided for public use by
                   Utah Open Data as part of the{" "}
@@ -64,6 +74,9 @@ function AboutPage() {
                   Front — Salt Lake, Utah, Davis, and Weber counties — along
                   with Tooele, Morgan, and Washington counties.
                 </p>
+              </article>
+              <article className="copy-card">
+                <h3 className="copy-card-title">Assessment/Sales Ratios</h3>
                 <p>
                   Assessment/Sales ratios are provided by the Utah State Tax
                   Commission. The reference year depends on the year that the
@@ -83,6 +96,9 @@ function AboutPage() {
                   </a>
                   .
                 </p>
+              </article>
+              <article className="copy-card">
+                <h3 className="copy-card-title">Census Boundaries</h3>
                 <p>
                   Place names and boundaries are provided by the U.S. Census
                   Bureau from the{" "}
@@ -91,6 +107,9 @@ function AboutPage() {
                   </a>
                   .
                 </p>
+              </article>
+              <article className="copy-card">
+                <h3 className="copy-card-title">American Community Survey</h3>
                 <p>
                   American Community Survey data from the 2020-2024 5-year
                   estimates are also provided by the U.S. Census Bureau via the{" "}

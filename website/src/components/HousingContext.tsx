@@ -69,7 +69,7 @@ function HousingContext({
       </p>
       <div className="context-grid">
         <article className="context-card">
-          <h3>Median Household Income</h3>
+          <h4>Median Household Income</h4>
           <p className="context-value">
             {formatCurrency(medianHouseholdIncome.estimate)}
           </p>
@@ -84,7 +84,7 @@ function HousingContext({
         </article>
 
         <article className="context-card">
-          <h3>Median Home Value / Income</h3>
+          <h4>Median Home Value / Income</h4>
           <p className="context-value">{formatRatio(ratio)}</p>
           <p className="context-ci">
             90% CI: {formatRatio(ratioLower)}-{formatRatio(ratioUpper)}
@@ -92,7 +92,7 @@ function HousingContext({
         </article>
 
         <article className="context-card">
-          <h3>Owner-Occupied Housing Share</h3>
+          <h4>Owner-Occupied Housing Share</h4>
           <p className="context-value">
             {formatPercent(acsValues.ownerOccupiedPercent.estimate)}
           </p>

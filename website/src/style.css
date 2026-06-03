@@ -76,7 +76,8 @@ img {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -163,7 +164,8 @@ footer {
 }
 
 footer a,
-.page-section a {
+.page-section a,
+.subheader-description a {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
@@ -253,6 +255,114 @@ footer a,
   padding: 1rem;
 }
 
+.custom-area-control {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.custom-area-toggle {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  padding: 0;
+  font-weight: 400;
+  text-align: right;
+}
+
+.custom-area-toggle:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.custom-area-toggle-arrow {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-0.15rem);
+  transition: transform 180ms ease;
+}
+
+.custom-area-toggle[aria-expanded="true"] .custom-area-toggle-arrow {
+  transform: rotate(225deg) translate(-0.1rem, -0.05rem);
+}
+
+.custom-area-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows 180ms ease,
+    visibility 0s linear 180ms;
+}
+
+.custom-area-disclosure.is-open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.custom-area-disclosure-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.custom-area-panel {
+  display: grid;
+  gap: 0.7rem;
+  padding-top: 0.9rem;
+}
+
+.custom-area-panel h2 {
+  font-size: 1.15rem;
+}
+
+.custom-area-textarea {
+  width: 100%;
+  min-height: 25rem;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.custom-area-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.custom-area-submit {
+  min-height: 42px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 6px;
+  background: var(--accent-strong);
+  color: #ffffff;
+  padding: 0.45rem 0.8rem;
+  font-weight: 400;
+}
+
+.custom-area-submit:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.custom-area-error {
+  color: #a72b2b;
+  font-weight: 400;
+}
+
 .control-group {
   display: grid;
   gap: 0.45rem;
@@ -301,6 +411,7 @@ footer a,
 }
 
 input:focus,
+textarea:focus,
 button:focus-visible,
 a:focus-visible,
 canvas:focus-visible {
@@ -524,8 +635,8 @@ canvas:focus-visible {
   text-align: center;
 }
 
-.metric h3,
-.context-card h3 {
+.metric h4,
+.context-card h4 {
   font-family: var(--font-header);
   font-size: 0.95rem;
   font-weight: 700;
@@ -567,7 +678,7 @@ canvas:focus-visible {
   gap: 1rem;
 }
 
-.chart-heading h3 {
+.chart-heading h4 {
   font-size: 1.2rem;
 }
 
@@ -833,11 +944,6 @@ canvas:focus-visible {
   gap: 1rem;
 }
 
-.page-section h2 {
-  font-family: var(--font-header);
-  font-size: clamp(1.7rem, 3vw, 2.35rem);
-}
-
 .status-grid,
 .method-grid {
   display: grid;
@@ -879,12 +985,12 @@ canvas:focus-visible {
   gap: 0.55rem;
 }
 
-.copy-card h3 {
+.copy-card-title {
   color: var(--accent-strong);
   font-size: 1.15rem;
 }
 
-.sources-card {
+.copy-card-full {
   grid-column: 1 / -1;
 }
 
@@ -941,6 +1047,7 @@ canvas:focus-visible {
   .segmented,
   .geography-selector-input,
   .geography-selector-button,
+  .custom-area-textarea,
   .metric,
   .context-card,
   .chart-card {
@@ -953,6 +1060,10 @@ canvas:focus-visible {
 
   .segmented button.active {
     background: var(--accent);
+    color: #0b1220;
+  }
+
+  .custom-area-submit {
     color: #0b1220;
   }
 
@@ -981,6 +1092,10 @@ canvas:focus-visible {
   }
 
   .ranking-error {
+    color: #f5b4b0;
+  }
+
+  .custom-area-error {
     color: #f5b4b0;
   }
 }
@@ -1070,6 +1185,25 @@ canvas:focus-visible {
 
   .chart-tooltip {
     white-space: normal;
+  }
+}
+
+@media (max-width: 552px) {
+  .ranking-table {
+    font-size: 85%;
+  }
+
+  .ranking-table thead th {
+    font-size: calc(0.75rem * 0.85);
+  }
+
+  .ranking-rank,
+  .ranking-count {
+    font-size: calc(0.9rem * 0.85);
+  }
+
+  .rank-bar-label {
+    font-size: calc(0.76rem * 0.85);
   }
 }
 

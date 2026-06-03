@@ -79,13 +79,9 @@ def owner_occupied_percent(row):
         raise ValueError(f"Owner-occupied unit count exceeds total for {row['NAME']}")
 
     proportion = owner_occupied_units / occupied_units
-    variance_component = (
-        owner_occupied_units_moe**2 - proportion**2 * occupied_units_moe**2
-    )
+    variance_component = owner_occupied_units_moe**2 - proportion**2 * occupied_units_moe**2
     if variance_component < 0:
-        variance_component = (
-            owner_occupied_units_moe**2 + proportion**2 * occupied_units_moe**2
-        )
+        variance_component = owner_occupied_units_moe**2 + proportion**2 * occupied_units_moe**2
 
     return {
         "estimate": round(proportion * 100, 1),

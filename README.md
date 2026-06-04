@@ -19,9 +19,9 @@ pip install -r requirements.txt
 uvicorn api.app:app --reload
 ```
 
-The website uses `http://127.0.0.1:8000` by default. Set
-`VITE_FASTAPI_SERVER_BASE` when the API is hosted elsewhere, such as
-`https://example.com/projects/utah-home-values`.
+The website uses `http://127.0.0.1:8000` by default. Set `VITE_FASTAPI_BASE_PATH`
+when the API is hosted elsewhere, such as
+`https://example.com/projects/utah-home-values/api`.
 
 Submit a GeoJSON Polygon in longitude and latitude coordinates:
 

@@ -12,6 +12,13 @@ from shapely.errors import GEOSException
 from shapely.geometry import Polygon, shape
 from shapely.validation import explain_validity
 
+from pipeline.validate_data import (
+    DataValidationError,
+    validate_generated_values,
+    validate_housing_source_records,
+    validate_record_count_change,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_DIR = PROJECT_ROOT / "config"
@@ -110,7 +117,11 @@ def get_wasatch_front_counties(county_quality):
 
 def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
     hui_raw = hui_raw.copy()
-    hui_raw["IS_OUG_CLEAN"] = pd.to_numeric(hui_raw["IS_OUG"], errors="coerce").fillna(0)
+    if "IS_OUG" in hui_raw:
+        hui_raw["IS_OUG_CLEAN"] = pd.to_numeric(hui_raw["IS_OUG"], errors="coerce").fillna(0)
+    else:
+        hui_raw["IS_OUG_CLEAN"] = 0
+
     hui_candidate = hui_raw[
         # Owner-unit-like residential records: single-family homes, townhomes, and condos
         hui_raw["SUBTYPE"].isin(["single_family", "townhome", "condo"])
@@ -388,6 +399,31 @@ def write_json(path: Path, payload):
         json.dump(payload, f, separators=(",", ":"))
 
 
+def read_json(path: Path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def validate_generated_housing_payloads(output_dir: Path, payloads):
+    filenames = [
+        DATASET_FILENAMES["huiAssessedValues"],
+        DATASET_FILENAMES["huiMarketAdjustedValues"],
+    ]
+
+    for filename in filenames:
+        current_payload = payloads[filename]
+        validate_generated_values(current_payload)
+
+        previous_path = output_dir / filename
+        if previous_path.exists():
+            try:
+                previous_payload = read_json(previous_path)
+            except json.JSONDecodeError as exc:
+                raise DataValidationError(f"existing published data is invalid: {filename}") from exc
+
+            validate_record_count_change(previous_payload, current_payload)
+
+
 def publish_json_payloads(output_dir: Path, payloads, validate_payloads=None):
     if validate_payloads is not None:
         validate_payloads(payloads)
@@ -422,6 +458,7 @@ def main():
 
     # Load in and filter GDB
     hui_raw = gpd.read_file(GDB_PATH, layer=GDB_LAYER_NAME)
+    validate_housing_source_records(hui_raw, require_values=False)
 
     print("GDB df Shape:")
     print(hui_raw.shape)
@@ -429,6 +466,7 @@ def main():
     county_quality = load_county_quality()
     wasatch_front_counties = get_wasatch_front_counties(county_quality)
     hui_valid = filter_valid_housing_units(hui_raw, county_quality)
+    validate_housing_source_records(hui_valid)
 
     hui_wasatch_front = hui_valid[hui_valid["is_wasatch_front"]].copy()
 
@@ -501,6 +539,10 @@ def main():
             DATASET_FILENAMES["huiMarketAdjustedValues"]: market_adjusted_values,
             "manifest.json": build_manifest(),
         },
+        validate_payloads=lambda payloads: validate_generated_housing_payloads(
+            PROCESSED_DATA_DIR,
+            payloads,
+        ),
     )
 
 

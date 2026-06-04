@@ -18,7 +18,9 @@ function HeroSection() {
         </div>
         <p>
           Browse and compare estimated single-family home values across Utah
-          cities, counties, ZIP codes, and regions.
+          cities, counties, ZIP codes, and regions. Assessed value data was last
+          updated in January 2026; household income and ownership percentage
+          data was also last updated in January 2026.
         </p>
       </div>
       <div

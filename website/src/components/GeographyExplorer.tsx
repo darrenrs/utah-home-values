@@ -451,7 +451,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
         <div>
           <h4>Percentile Curve</h4>
           <p className="subheader-description">
-            Every point from the 1st to the 99th percentile.
+            See the value distribution from the 1st to 99th percentiles.
           </p>
         </div>
       </div>
@@ -585,7 +585,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   useEffect(() => {
     let cancelled = false;
 
-    fetch(withApiBaseUrl("/api/health"))
+    fetch(withApiBaseUrl("/health"))
       .then((response) => {
         if (!cancelled && response.ok) {
           setIsCustomAreaAvailable(true);
@@ -668,7 +668,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
         return;
       }
 
-      const response = await fetch(withApiBaseUrl("/api/polygon"), {
+      const response = await fetch(withApiBaseUrl("/polygon"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

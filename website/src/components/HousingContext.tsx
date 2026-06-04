@@ -21,6 +21,18 @@ function confidenceInterval(
   return `90% CI: ${formatter(lower)}-${formatter(upper)}`;
 }
 
+function affordabilityDescription(value: number) {
+  if (value <= 3.0) {
+    return "Affordable";
+  } else if (value <= 4.0) {
+    return "Moderately unaffordable";
+  } else if (value <= 5.0) {
+    return "Seriously unaffordable";
+  } else {
+    return "Severely unaffordable";
+  }
+}
+
 function HousingContext({
   acsValues,
   homeValueStats,
@@ -87,6 +99,8 @@ function HousingContext({
           <h4>Median Home Value / Income</h4>
           <p className="context-value">{formatRatio(ratio)}</p>
           <p className="context-ci">
+            {affordabilityDescription(ratio)}
+            <br />
             90% CI: {formatRatio(ratioLower)}-{formatRatio(ratioUpper)}
           </p>
         </article>

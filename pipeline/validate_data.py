@@ -15,12 +15,15 @@ REQUIRED_HOUSING_SOURCE_COLUMNS = {
 REQUIRED_HOUSING_SOURCE_VALUE_COLUMNS = REQUIRED_HOUSING_SOURCE_COLUMNS
 
 
-def validate_housing_source_records(records):
+def validate_housing_source_records(records, require_values=True):
     missing_columns = REQUIRED_HOUSING_SOURCE_COLUMNS - set(records.columns)
 
     if missing_columns:
         column_list = ", ".join(sorted(missing_columns))
         raise DataValidationError(f"missing required columns: {column_list}")
+
+    if not require_values:
+        return
 
     missing_value_columns = []
     for column in sorted(REQUIRED_HOUSING_SOURCE_VALUE_COLUMNS):

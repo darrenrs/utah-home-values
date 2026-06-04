@@ -70,9 +70,9 @@ function AboutPage() {
                   </a>{" "}
                   dataset. Parcels which correspond to single- and multi-family
                   housing units are aggregated by county assessors and submitted
-                  to the dataset. The dataset currenty includes the core Wasatch
-                  Front — Salt Lake, Utah, Davis, and Weber counties — along
-                  with Tooele, Morgan, and Washington counties.
+                  to the dataset. The dataset currently includes the core
+                  Wasatch Front — Salt Lake, Utah, Davis, and Weber counties —
+                  along with Tooele, Morgan, and Washington counties.
                 </p>
               </article>
               <article className="copy-card">

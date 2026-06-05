@@ -2,13 +2,9 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import {
-  loadData,
-  type DataBundle,
-  type ValueMode,
-  type ValueStats,
-} from "../data/loadData";
+import { loadData, type DataBundle, type ValueStats } from "../data/loadData";
 import { formatCurrency, formatNumber } from "../lib/format";
+import PageTitle from "../components/PageTitle";
 
 const MIN_SAMPLE_SIZE = 100;
 const MIN_HOME_VALUE = 200_000;
@@ -222,140 +218,143 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
       : `P${numericPercentile < 10 ? "0" : ""}${numericPercentile} home value`;
 
   return (
-    <section className="rankings-shell">
-      <div className="rankings-intro">
-        <p className="eyebrow">Utah Home Values</p>
-        <h1>Home Value Rankings</h1>
-        <p>Compare cities and communities by percentile ranks.</p>
-      </div>
-
-      <article className="ranking-controls" aria-label="Ranking controls">
-        <div className="ranking-control-grid">
-          <div className="control-group">
-            <span className="control-label">Rank By</span>
-            <div className="segmented" role="group" aria-label="Ranking mode">
-              <button
-                type="button"
-                className={queryMode === "homeValue" ? "active" : ""}
-                aria-pressed={queryMode === "homeValue"}
-                onClick={() => setQueryMode("homeValue")}
-              >
-                Home Value
-              </button>
-              <button
-                type="button"
-                className={queryMode === "percentile" ? "active" : ""}
-                aria-pressed={queryMode === "percentile"}
-                onClick={() => setQueryMode("percentile")}
-              >
-                Percentile
-              </button>
-            </div>
-          </div>
-
-          {queryMode === "homeValue" ? (
-            <label className="control-group">
-              <span className="control-label">Home Value</span>
-              <span className="rank-input-wrap">
-                <span aria-hidden="true">$</span>
-                <input
-                  className="rank-query-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={MIN_HOME_VALUE}
-                  max={MAX_HOME_VALUE}
-                  step="10000"
-                  value={homeValue}
-                  aria-describedby="rank-query-help"
-                  onChange={(event) => setHomeValue(event.target.value)}
-                />
-              </span>
-            </label>
-          ) : (
-            <label className="control-group">
-              <span className="control-label">Percentile</span>
-              <span className="rank-input-wrap">
-                <input
-                  className="rank-query-input"
-                  type="number"
-                  inputMode="decimal"
-                  min={MIN_PERCENTILE}
-                  max={MAX_PERCENTILE}
-                  step="1"
-                  value={percentile}
-                  aria-describedby="rank-query-help"
-                  onChange={(event) => setPercentile(event.target.value)}
-                />
-                <span aria-hidden="true">%</span>
-              </span>
-            </label>
-          )}
+    <>
+      <PageTitle title="City Rankings | Utah Home Value Explorer" />
+      <section className="rankings-shell">
+        <div className="rankings-intro">
+          <p className="eyebrow">Utah Home Values</p>
+          <h1>City Rankings</h1>
+          <p>Compare cities and communities by percentile ranks.</p>
         </div>
 
-        <p
-          id="rank-query-help"
-          className={
-            queryIsValid ? "ranking-help" : "ranking-help ranking-error"
-          }
-        >
-          {queryMode === "homeValue"
-            ? homeValueIsValid
-              ? "Ranks places by the percentile rank of a home at a given value."
-              : `Enter a home value from ${formatCurrency(MIN_HOME_VALUE)} to ${formatCurrency(MAX_HOME_VALUE)}.`
-            : percentileIsValid
-              ? "Ranks places by the home value at a given percentile."
-              : "Enter an integer percentile from 1 to 99."}{" "}
-          Only market-adjusted values are supported as these are cross-county
-          comparisons.
-        </p>
-      </article>
+        <article className="ranking-controls" aria-label="Ranking controls">
+          <div className="ranking-control-grid">
+            <div className="control-group">
+              <span className="control-label">Rank By</span>
+              <div className="segmented" role="group" aria-label="Ranking mode">
+                <button
+                  type="button"
+                  className={queryMode === "homeValue" ? "active" : ""}
+                  aria-pressed={queryMode === "homeValue"}
+                  onClick={() => setQueryMode("homeValue")}
+                >
+                  Home Value
+                </button>
+                <button
+                  type="button"
+                  className={queryMode === "percentile" ? "active" : ""}
+                  aria-pressed={queryMode === "percentile"}
+                  onClick={() => setQueryMode("percentile")}
+                >
+                  Percentile
+                </button>
+              </div>
+            </div>
 
-      {queryIsValid && (
-        <article className="ranking-table-panel">
-          <div className="ranking-table-heading">
-            <h2>Place Rankings</h2>
-            <p className="ranking-filter">n ≥ {MIN_SAMPLE_SIZE}</p>
+            {queryMode === "homeValue" ? (
+              <label className="control-group">
+                <span className="control-label">Home Value</span>
+                <span className="rank-input-wrap">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    className="rank-query-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_HOME_VALUE}
+                    max={MAX_HOME_VALUE}
+                    step="10000"
+                    value={homeValue}
+                    aria-describedby="rank-query-help"
+                    onChange={(event) => setHomeValue(event.target.value)}
+                  />
+                </span>
+              </label>
+            ) : (
+              <label className="control-group">
+                <span className="control-label">Percentile</span>
+                <span className="rank-input-wrap">
+                  <input
+                    className="rank-query-input"
+                    type="number"
+                    inputMode="decimal"
+                    min={MIN_PERCENTILE}
+                    max={MAX_PERCENTILE}
+                    step="1"
+                    value={percentile}
+                    aria-describedby="rank-query-help"
+                    onChange={(event) => setPercentile(event.target.value)}
+                  />
+                  <span aria-hidden="true">%</span>
+                </span>
+              </label>
+            )}
           </div>
 
-          <div className="ranking-table-scroll">
-            <table className="ranking-table">
-              <thead>
-                <tr>
-                  <th scope="col">Rank</th>
-                  <th scope="col">Place Name</th>
-                  <th scope="col">n</th>
-                  <th scope="col">{barHeading}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="ranking-rank">{row.rank}</td>
-                    <th scope="row">
-                      <Link
-                        className="ranking-place-link"
-                        to={{ pathname: "/", hash: `#${row.id}` }}
-                      >
-                        {row.name}
-                      </Link>
-                    </th>
-                    <td className="ranking-count">{formatNumber(row.n)}</td>
-                    <td>
-                      <RankingBar row={row} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="explorer-note">
-            Values are rounded to the nearest $1,000. Rankings use the published
-            1st through 99th percentile values.
+          <p
+            id="rank-query-help"
+            className={
+              queryIsValid ? "ranking-help" : "ranking-help ranking-error"
+            }
+          >
+            {queryMode === "homeValue"
+              ? homeValueIsValid
+                ? "Ranks places by the percentile rank of a home at a given value."
+                : `Enter a home value from ${formatCurrency(MIN_HOME_VALUE)} to ${formatCurrency(MAX_HOME_VALUE)}.`
+              : percentileIsValid
+                ? "Ranks places by the home value at a given percentile."
+                : "Enter an integer percentile from 1 to 99."}{" "}
+            Only market-adjusted values are supported as these are cross-county
+            comparisons.
           </p>
         </article>
-      )}
-    </section>
+
+        {queryIsValid && (
+          <article className="ranking-table-panel">
+            <div className="ranking-table-heading">
+              <h2>Place Rankings</h2>
+              <p className="ranking-filter">n ≥ {MIN_SAMPLE_SIZE}</p>
+            </div>
+
+            <div className="ranking-table-scroll">
+              <table className="ranking-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Place Name</th>
+                    <th scope="col">n</th>
+                    <th scope="col">{barHeading}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="ranking-rank">{row.rank}</td>
+                      <th scope="row">
+                        <Link
+                          className="ranking-place-link"
+                          to={{ pathname: "/", hash: `#${row.id}` }}
+                        >
+                          {row.name}
+                        </Link>
+                      </th>
+                      <td className="ranking-count">{formatNumber(row.n)}</td>
+                      <td>
+                        <RankingBar row={row} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="explorer-note">
+              Values are rounded to the nearest $1,000. Rankings use the
+              published 1st through 99th percentile values.
+            </p>
+          </article>
+        )}
+      </section>
+    </>
   );
 }
 

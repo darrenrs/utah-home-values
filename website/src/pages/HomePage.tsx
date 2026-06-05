@@ -5,31 +5,39 @@ import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import { loadData, type DataBundle } from "../data/loadData";
 import { withBaseUrl } from "../lib/baseUrl";
+import PageTitle from "../components/PageTitle";
 
 function HeroSection() {
   return (
-    <section className="hero hero-split hero-split-main-page">
-      <div className="stack hero-main-copy">
-        <div className="hero-main-title-row">
-          <h1>Utah Home Values Explorer</h1>
-          <div className="hero-image-frame hero-image-frame-mobile">
-            <img src={withBaseUrl("image.png")} alt="" className="hero-image" />
+    <>
+      <PageTitle title="Utah Home Value Explorer" />
+      <section className="hero hero-split hero-split-main-page">
+        <div className="stack hero-main-copy">
+          <div className="hero-main-title-row">
+            <h1>Utah Home Values Explorer</h1>
+            <div className="hero-image-frame hero-image-frame-mobile">
+              <img
+                src={withBaseUrl("image.png")}
+                alt=""
+                className="hero-image"
+              />
+            </div>
           </div>
+          <p>
+            Browse and compare estimated single-family home values across Utah
+            cities, counties, ZIP codes, and regions. Assessed value data was
+            last updated in January 2026; household income and ownership
+            percentage data was also last updated in January 2026.
+          </p>
         </div>
-        <p>
-          Browse and compare estimated single-family home values across Utah
-          cities, counties, ZIP codes, and regions. Assessed value data was last
-          updated in January 2026; household income and ownership percentage
-          data was also last updated in January 2026.
-        </p>
-      </div>
-      <div
-        className="hero-image-frame hero-image-frame-desktop"
-        aria-hidden="true"
-      >
-        <img src={withBaseUrl("image.png")} alt="" className="hero-image" />
-      </div>
-    </section>
+        <div
+          className="hero-image-frame hero-image-frame-desktop"
+          aria-hidden="true"
+        >
+          <img src={withBaseUrl("image.png")} alt="" className="hero-image" />
+        </div>
+      </section>
+    </>
   );
 }
 

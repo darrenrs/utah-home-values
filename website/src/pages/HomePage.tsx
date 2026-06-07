@@ -24,10 +24,23 @@ function HeroSection() {
             </div>
           </div>
           <p>
-            Browse and compare estimated single-family home values across Utah
-            cities, counties, ZIP codes, and regions. Assessed value data was
-            last updated in January 2026; household income and ownership
-            percentage data was also last updated in January 2026.
+            Browse and compare estimated single-family home values across{" "}
+            <strong>Utah cities, counties, ZIP codes, and regions</strong>.
+          </p>
+          <p>
+            Assessed values are{" "}
+            <strong>reported on a county-by-county basis</strong> and may not
+            reflect the same year; cross-county comparisons of assessed values
+            are not supported at this time.
+          </p>
+          <p>
+            Interested in how much your home is worth? The most reliable
+            estimate besides contacting a real estate agent is to look up your
+            home in your county's <strong>parcel search</strong> tool (Google "X
+            County Parcel Search".) Choose the assessed value for the year shown
+            next to the Assessed button for your county. In the assessed view,
+            find the percentile closest to that value, then switch to
+            Market-adjusted (2025) and read the value at the same percentile.
           </p>
         </div>
         <div

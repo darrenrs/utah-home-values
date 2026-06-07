@@ -44,6 +44,7 @@ DATASET_FILENAMES = {
 
 MAX_POLYGON_VERTICES = 10_000
 MAX_POLYGON_REPAIR_AREA_DELTA_RATIO = 0.01
+PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE = 0.9
 
 
 def slugify(value: str):
@@ -152,6 +153,8 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
         how="left",
         validate="many_to_one",
     )
+    if "hpi_ratio" not in hui_candidate:
+        hui_candidate["hpi_ratio"] = 1.0
 
     hui_valid = hui_candidate[
         (hui_candidate["is_valid"])
@@ -161,7 +164,7 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
     ].copy()
 
     hui_valid["MARKET_ADJUSTED_VALUE"] = (
-        hui_valid["TOT_VALUE"] / hui_valid["assessment_sales_ratio"]
+        hui_valid["TOT_VALUE"] / hui_valid["assessment_sales_ratio"] * hui_valid["hpi_ratio"]
     )
 
     return hui_valid
@@ -194,6 +197,7 @@ def summarize_values(df: pd.DataFrame, value_col: str):
         {
             "n": len(df),
             "mean": normalize_value(df[value_col].mean()),
+            "total": normalize_value(df[value_col].sum()),
             "percentiles": percentiles,
         }
     )
@@ -235,8 +239,31 @@ def stats_payload(row):
     return {
         "n": int(row["n"]),
         "mean": clean_number(row["mean"]),
+        "total": clean_number(row["total"]),
         "percentiles": [clean_number(value) for value in row["percentiles"]],
     }
+
+
+def clean_year(value):
+    if pd.isna(value):
+        return None
+
+    return int(value)
+
+
+def primary_assessed_value_year(df: pd.DataFrame, min_share: float = 0):
+    if "assessed_value_year" not in df or df.empty:
+        return None
+
+    counts = df["assessed_value_year"].dropna().value_counts()
+    if counts.empty:
+        return None
+
+    primary_year = counts.index[0]
+    if counts.iloc[0] / counts.sum() < min_share:
+        return None
+
+    return clean_year(primary_year)
 
 
 class InvalidPolygonError(ValueError):
@@ -324,6 +351,9 @@ def summarize_polygon(hui_points: gpd.GeoDataFrame, polygon_geojson):
     return {
         "assessed": stats_payload(summarize_values(matched, "TOT_VALUE")),
         "marketAdjusted": stats_payload(summarize_values(matched, "MARKET_ADJUSTED_VALUE")),
+        "assessedValueYear": primary_assessed_value_year(
+            matched, PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE
+        ),
     }
 
 
@@ -352,11 +382,17 @@ def build_attribute_payload(
     }
 
 
-def geography_payload(geography_type: str, name: str, parent_geography=None):
+def geography_payload(
+    geography_type: str,
+    name: str,
+    parent_geography=None,
+    assessed_value_year=None,
+):
     return {
         "type": geography_type,
         "name": name,
         "parentGeography": parent_geography,
+        "assessedValueYear": clean_year(assessed_value_year),
     }
 
 
@@ -375,6 +411,7 @@ def build_geography_catalog(
             "County",
             row["COUNTY_NAMELSAD"],
             WASATCH_FRONT_ID if row["COUNTY"] in wasatch_front_counties else None,
+            row["ASSESSED_VALUE_YEAR"],
         )
 
     for row in place_stats.to_dict(orient="records"):
@@ -382,6 +419,7 @@ def build_geography_catalog(
             "Place",
             row["PLACE_NAME"],
             geography_id("county", row["PRIMARY_COUNTY"]),
+            row["ASSESSED_VALUE_YEAR"],
         )
 
     for row in zcta5_stats.to_dict(orient="records"):
@@ -389,6 +427,7 @@ def build_geography_catalog(
             "ZCTA5",
             row["ZCTA5_NAMELSAD"],
             geography_id("county", row["PRIMARY_COUNTY"]),
+            row["ASSESSED_VALUE_YEAR"],
         )
 
     return catalog
@@ -419,7 +458,9 @@ def validate_generated_housing_payloads(output_dir: Path, payloads):
             try:
                 previous_payload = read_json(previous_path)
             except json.JSONDecodeError as exc:
-                raise DataValidationError(f"existing published data is invalid: {filename}") from exc
+                raise DataValidationError(
+                    f"existing published data is invalid: {filename}"
+                ) from exc
 
             validate_record_count_change(previous_payload, current_payload)
 
@@ -431,7 +472,9 @@ def publish_json_payloads(output_dir: Path, payloads, validate_payloads=None):
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix=".generated-data-", dir=output_dir.parent) as staging_dir:
+    with tempfile.TemporaryDirectory(
+        prefix=".generated-data-", dir=output_dir.parent
+    ) as staging_dir:
         staging_path = Path(staging_dir)
 
         for filename, payload in payloads.items():
@@ -480,6 +523,12 @@ def main():
     county_raw_stats["COUNTY_NAMELSAD"] = county_raw_stats["COUNTY"].map(
         lambda county: f"{county} County"
     )
+    county_assessed_value_years = {
+        county: quality.get("assessed_value_year") for county, quality in county_quality.items()
+    }
+    county_raw_stats["ASSESSED_VALUE_YEAR"] = county_raw_stats["COUNTY"].map(
+        county_assessed_value_years
+    )
 
     county_adjusted_stats = (
         hui_valid.groupby("COUNTY")
@@ -500,6 +549,9 @@ def main():
     place_raw_stats, place_adjusted_stats = join_shapefile(
         hui_valid, SHAPEFILE_PLACE_ZIP_PATH, column_mappings_place, "PLACE_GEOID"
     )
+    place_raw_stats["ASSESSED_VALUE_YEAR"] = place_raw_stats["PRIMARY_COUNTY"].map(
+        county_assessed_value_years
+    )
 
     column_mappings_zcta5 = {
         "ZCTA5CE20": "ZCTA5_GEOID",
@@ -508,6 +560,9 @@ def main():
 
     zcta5_raw_stats, zcta5_adjusted_stats = join_shapefile(
         hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID"
+    )
+    zcta5_raw_stats["ASSESSED_VALUE_YEAR"] = zcta5_raw_stats["PRIMARY_COUNTY"].map(
+        county_assessed_value_years
     )
 
     geography_catalog = build_geography_catalog(

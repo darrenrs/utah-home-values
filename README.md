@@ -4,7 +4,7 @@ A data pipeline and interactive website for exploring single-family home values 
 
 ## Features
 
-- Fully deterministic data pipeline based on four official data sources
+- Fully deterministic data pipeline based on five official data sources
 - Responsive website design with data visualizations, with support for counties, cities/CDPs, ZIP Code Tabulation Areas, and the Wasatch Front
 - Rankings page including all cities/CDPs, allowing a target budget or percentile input for quick comparison
 - Support for custom areas defined by GeoJSON polygons allowing deeper neighborhood/census tract analysis
@@ -74,7 +74,7 @@ curl -X POST http://127.0.0.1:8000/api/polygon \
   --data '{"type":"Polygon","coordinates":[[[-112.06,41.17],[-112.06,41.19],[-112.04,41.19],[-112.04,41.17],[-112.06,41.17]]]}'
 ```
 
-The response contains assessed and market-adjusted summaries using the same filtering and percentile calculations as the static website data. For privacy reasons, requests containing fewer than 100 housing units are rejected with a 403 status code.
+The response contains assessed and market-adjusted summaries using the same filtering and percentile calculations as the static website data. If less than 90% of the matching housing units share the same assessed year, the API will still contain the assessed summary but it will not be accessible in the website. For privacy reasons, requests containing fewer than 100 housing units are rejected with a 403 status code.
 
 ## Data Sources
 
@@ -97,6 +97,10 @@ As part of the pipeline, outlier or non-single-family records from this dataset 
 ### Utah Assessment/Sales Ratio Studies
 
 Assessment/Sales ratios are provided by the Utah State Tax Commission. The reference year depends on the year that the assessed value is associated with, which can be found in `config/counties.yml`. The most recent report, concerning fiscal year 2024, was published in 2025, and is available here: https://files.tax.utah.gov/propertytax/srs/srs2025.pdf.
+
+## FHFA House Price Index
+
+The FHFA All-Transactions House Price Index, provided by the Federal Reserve Bank of St. Louis (FRED), is the ratio of a given year's sales price to the average sales price in Q1 1980. This is used to calculate more recent value estimates than are available in the HUI LIR.
 
 ### Census TIGER/Line Shapefiles
 

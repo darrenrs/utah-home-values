@@ -51,6 +51,7 @@ def housing_points(coordinates):
             "MARKET_ADJUSTED_VALUE": [
                 250_000 + index * 10_000 for index in range(len(coordinates))
             ],
+            "assessed_value_year": [2024] * len(coordinates),
         },
         geometry=[Point(coordinate) for coordinate in coordinates],
         crs="EPSG:4326",
@@ -71,8 +72,25 @@ def test_summarize_polygon_converts_geojson_crs_and_excludes_boundary_points():
 
     assert summary["assessed"]["n"] == 2
     assert summary["assessed"]["mean"] == 205_000
+    assert summary["assessed"]["total"] == 410_000
     assert summary["marketAdjusted"]["mean"] == 255_000
+    assert summary["marketAdjusted"]["total"] == 510_000
+    assert summary["assessedValueYear"] == 2024
     assert len(summary["assessed"]["percentiles"]) == 99
+
+
+def test_summarize_polygon_returns_null_assessed_year_for_mixed_year_area():
+    points = housing_points(
+        [
+            (-112.05, 41.18),
+            (-112.051, 41.181),
+        ]
+    )
+    points["assessed_value_year"] = [2024, 2023]
+
+    summary = summarize_polygon(points, polygon())
+
+    assert summary["assessedValueYear"] is None
 
 
 def test_parse_polygon_rejects_non_polygon_geojson():

@@ -410,6 +410,12 @@ footer a,
   color: #ffffff;
 }
 
+.segmented button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 input:focus,
 textarea:focus,
 button:focus-visible,
@@ -527,7 +533,7 @@ canvas:focus-visible {
 }
 
 .value-control {
-  min-width: 360px;
+  min-width: 420px;
 }
 
 .summary-head h2 {
@@ -994,35 +1000,6 @@ canvas:focus-visible {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 940px) {
-  .control-bar,
-  .ranking-control-grid,
-  .method-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .metric-grid,
-  .context-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .metric:nth-child(3) {
-    grid-column: 1 / -1;
-  }
-
-  .context-card:nth-child(3) {
-    grid-column: 1 / -1;
-  }
-
-  .status-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-heading {
-    display: grid;
-  }
-}
-
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b1220;
@@ -1100,9 +1077,42 @@ canvas:focus-visible {
   }
 }
 
+@media (max-width: 940px) {
+  .control-bar,
+  .ranking-control-grid,
+  .method-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metric-grid,
+  .context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .context-card:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-heading {
+    display: grid;
+  }
+}
+
 @media (max-width: 760px) {
   .geo-segmented {
     grid-template-columns: 1fr;
+  }
+
+  .geo-segmented button {
+    text-align: left;
   }
 
   .hero-split {

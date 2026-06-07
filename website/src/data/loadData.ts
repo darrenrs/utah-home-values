@@ -8,6 +8,7 @@ export type ValueMode = "market" | "assessed";
 export type ValueStats = {
   n: number;
   mean: number;
+  total: number;
   percentiles: number[];
 };
 
@@ -15,6 +16,7 @@ export type GeographyMetadata = {
   type: DataSection;
   name: string;
   parentGeography: string | null;
+  assessedValueYear: number | null;
 };
 
 export type GeographyCatalog = Record<string, GeographyMetadata>;

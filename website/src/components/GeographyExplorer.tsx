@@ -32,6 +32,7 @@ type PercentilePoint = {
 type CustomAreaSummary = {
   assessed: ValueStats;
   marketAdjusted: ValueStats;
+  assessedValueYear: number | null;
 };
 
 const GEO_TYPES = [
@@ -42,9 +43,9 @@ const GEO_TYPES = [
 ] satisfies Array<{ id: GeographyType; label: string }>;
 
 const VALUE_MODES = [
-  { id: "market", label: "Market-adjusted" },
-  { id: "assessed", label: "Assessed" },
-] satisfies Array<{ id: ValueMode; label: string }>;
+  { id: "market" },
+  { id: "assessed" },
+] satisfies Array<{ id: ValueMode }>;
 
 const HIGHLIGHTS = [
   { percentile: 10, label: "10th Percentile" },
@@ -191,6 +192,19 @@ function customAreaStatsForMode(
   return valueMode === "market" ? summary.marketAdjusted : summary.assessed;
 }
 
+function assessedValueYearLabel(year: number | null | undefined) {
+  return typeof year === "number" ? String(year) : "mixed years";
+}
+
+function valueModeLabel(
+  valueMode: ValueMode,
+  assessedValueYear: number | null,
+) {
+  return valueMode === "assessed"
+    ? `Assessed (${assessedValueYearLabel(assessedValueYear)})`
+    : "Market-adjusted (2025)";
+}
+
 function isValueStats(value: unknown): value is ValueStats {
   if (!value || typeof value !== "object") {
     return false;
@@ -200,6 +214,7 @@ function isValueStats(value: unknown): value is ValueStats {
   return (
     typeof candidate.n === "number" &&
     typeof candidate.mean === "number" &&
+    typeof candidate.total === "number" &&
     Array.isArray(candidate.percentiles)
   );
 }
@@ -211,7 +226,10 @@ function isCustomAreaSummary(value: unknown): value is CustomAreaSummary {
 
   const candidate = value as Partial<CustomAreaSummary>;
   return (
-    isValueStats(candidate.assessed) && isValueStats(candidate.marketAdjusted)
+    isValueStats(candidate.assessed) &&
+    isValueStats(candidate.marketAdjusted) &&
+    (candidate.assessedValueYear === null ||
+      typeof candidate.assessedValueYear === "number")
   );
 }
 
@@ -559,6 +577,10 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   const selectedLabel = customAreaSummary
     ? "Custom Area"
     : (selectedMetadata?.name ?? "");
+  const assessedValueYear = customAreaSummary
+    ? customAreaSummary.assessedValueYear
+    : (selectedMetadata?.assessedValueYear ?? null);
+  const assessedValueModeAvailable = assessedValueYear !== null;
   const parentMetadata =
     !customAreaSummary && selectedMetadata?.parentGeography
       ? geographies[selectedMetadata.parentGeography]
@@ -601,6 +623,12 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   }, []);
 
   useEffect(() => {
+    if (valueMode === "assessed" && !assessedValueModeAvailable) {
+      setValueMode("market");
+    }
+  }, [assessedValueModeAvailable, valueMode]);
+
+  useEffect(() => {
     const syncFromHash = () => {
       const nextSelectedId = getHashGeographyId(geographies);
 
@@ -634,6 +662,10 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   };
 
   const handleValueModeChange = (nextValueMode: ValueMode) => {
+    if (nextValueMode === "assessed" && !assessedValueModeAvailable) {
+      return;
+    }
+
     if (customAreaSummary) {
       setValueMode(nextValueMode);
       return;
@@ -801,7 +833,8 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
               {sampleSizeLevel !== "error" && (
                 <p className="summary-meta">
                   <strong>Count:</strong> {formatNumber(selected.n)},{" "}
-                  <strong>Mean:</strong> {formatCurrency(selected.mean)}
+                  <strong>Mean:</strong> {formatCurrency(selected.mean)},{" "}
+                  <strong>Cumulative:</strong> {formatCurrency(selected.total)}
                 </p>
               )}
             </div>
@@ -814,9 +847,12 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                       key={item.id}
                       type="button"
                       className={item.id === valueMode ? "active" : ""}
+                      disabled={
+                        item.id === "assessed" && !assessedValueModeAvailable
+                      }
                       onClick={() => handleValueModeChange(item.id)}
                     >
-                      {item.label}
+                      {valueModeLabel(item.id, assessedValueYear)}
                     </button>
                   ))}
                 </div>
@@ -845,14 +881,17 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                       percentilePoints,
                       item.percentile,
                     );
-                    const parentComparison = getParentComparison(
-                      value,
-                      getPercentileValue(
-                        parentPercentilePoints,
-                        item.percentile,
-                      ),
-                      parentMetadata?.name,
-                    );
+                    const parentComparison =
+                      valueMode === "market" || parentMetadata?.type === "County"
+                        ? getParentComparison(
+                            value,
+                            getPercentileValue(
+                              parentPercentilePoints,
+                              item.percentile,
+                            ),
+                            parentMetadata?.name,
+                          )
+                        : undefined;
 
                     return (
                       <article key={item.percentile} className="metric">
@@ -869,7 +908,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                 </div>
               </section>
 
-              {!customAreaSummary && (
+              {!customAreaSummary && selectedId !== WASATCH_FRONT_ID && (
                 <HousingContext
                   acsValues={acsValues.geographies[activeSelectedId]}
                   homeValueStats={selected}

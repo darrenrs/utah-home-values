@@ -35,6 +35,7 @@ def housing_points(count):
         {
             "TOT_VALUE": [300_000] * count,
             "MARKET_ADJUSTED_VALUE": [350_000] * count,
+            "assessed_value_year": [2024] * count,
         },
         geometry=[Point(-112.05, 41.18)] * count,
         crs="EPSG:4326",
@@ -65,6 +66,8 @@ def test_polygon_summary_returns_summary_at_privacy_threshold():
     assert response.status_code == 200
     assert response.json()["assessed"]["n"] == 100
     assert response.json()["marketAdjusted"]["mean"] == 350_000
+    assert response.json()["marketAdjusted"]["total"] == 35_000_000
+    assert response.json()["assessedValueYear"] == 2024
 
 
 def test_polygon_summary_accepts_polygon_feature_collection():

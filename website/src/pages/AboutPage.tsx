@@ -29,8 +29,9 @@ function AboutPage() {
                     non-single-family units are filtered out; some townhomes and
                     condos are kept if there is evidence that they are
                     single-unit dwellings. The original assessed values are
-                    adjusted to estimated real market values based on
-                    county-level assessment/sales ratios.
+                    adjusted to estimated 2025 market values based on
+                    county-level assessment/sales ratios and the federal House
+                    Price Index.
                   </p>
                 </article>
                 <article className="copy-card">
@@ -78,6 +79,9 @@ function AboutPage() {
                     Davis, and Weber counties — along with Tooele, Morgan, and
                     Washington counties.
                   </p>
+                  <p>
+                    <strong>Last updated</strong>: January 2026
+                  </p>
                 </article>
                 <article className="copy-card">
                   <h3 className="copy-card-title">Assessment/Sales Ratios</h3>
@@ -100,6 +104,25 @@ function AboutPage() {
                     </a>
                     .
                   </p>
+                  <p>
+                    <strong>Last updated</strong>: 2025
+                  </p>
+                </article>
+                <article className="copy-card">
+                  <h3 className="copy-card-title">House Price Index Ratios</h3>
+                  <p>
+                    The House Price Index ratios use the FHFA All-Transactions
+                    House Price Index and are provided by the Federal Reserve
+                    Bank of St. Louis (FRED). The ratio used is the 2025 value
+                    divided by the county's <code>assessed_value_year</code>. (
+                    <a href="https://fred.stlouisfed.org/series/ATNHPIUS49011A">
+                      Example link for Davis County
+                    </a>
+                    .)
+                  </p>
+                  <p>
+                    <strong>Last updated</strong>: March 31, 2026
+                  </p>
                 </article>
                 <article className="copy-card">
                   <h3 className="copy-card-title">Census Boundaries</h3>
@@ -110,6 +133,9 @@ function AboutPage() {
                       2024 Census TIGER/Line Shapefiles
                     </a>
                     .
+                  </p>
+                  <p>
+                    <strong>Last updated</strong>: September 25, 2024
                   </p>
                 </article>
                 <article className="copy-card">
@@ -130,6 +156,9 @@ function AboutPage() {
                       Tenure (B25003)
                     </a>
                     .
+                  </p>
+                  <p>
+                    <strong>Last updated</strong>: January 29, 2026
                   </p>
                 </article>
               </div>

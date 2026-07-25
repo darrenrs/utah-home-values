@@ -786,9 +786,9 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                   <h2>Custom Area</h2>
                   <p className="subheader-description">
                     You can add a geography here. A simple tool to generate the
-                    code needed to make this work can be found on{" "}
-                    <a href="https://www.keene.edu/campus/maps/tool/">
-                      Keene State College's website
+                    code needed to make this work is{" "}
+                    <a href="https://geojson.io/">
+                      geojson.io
                     </a>
                     .
                   </p>

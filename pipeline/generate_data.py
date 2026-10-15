@@ -170,9 +170,21 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
     return hui_valid
 
 
+def load_housing_units():
+    # Some HUI exports contain unclosed rings. Close them during WKB decoding,
+    # before Shapely constructs the polygons; unrepairable geometries remain null
+    # and are rejected by source validation if retained after filtering.
+    return gpd.read_file(
+        GDB_PATH, layer=GDB_LAYER_NAME, engine="pyogrio", on_invalid="fix"
+    )
+
+
 def load_valid_housing_units():
-    hui_raw = gpd.read_file(GDB_PATH, layer=GDB_LAYER_NAME)
-    return filter_valid_housing_units(hui_raw, load_county_quality())
+    hui_raw = load_housing_units()
+    validate_housing_source_records(hui_raw, require_values=False)
+    hui_valid = filter_valid_housing_units(hui_raw, load_county_quality())
+    validate_housing_source_records(hui_valid)
+    return hui_valid
 
 
 def housing_representative_points(hui_valid: gpd.GeoDataFrame):
@@ -500,7 +512,7 @@ def main():
     print(pyogrio.list_layers(GDB_PATH))
 
     # Load in and filter GDB
-    hui_raw = gpd.read_file(GDB_PATH, layer=GDB_LAYER_NAME)
+    hui_raw = load_housing_units()
     validate_housing_source_records(hui_raw, require_values=False)
 
     print("GDB df Shape:")

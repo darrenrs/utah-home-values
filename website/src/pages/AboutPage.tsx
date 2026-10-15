@@ -80,7 +80,7 @@ function AboutPage() {
                     Washington counties.
                   </p>
                   <p>
-                    <strong>Last updated</strong>: January 2026
+                    <strong>Last updated</strong>: October 14, 2026
                   </p>
                 </article>
                 <article className="copy-card">
@@ -90,6 +90,10 @@ function AboutPage() {
                     Commission. The reference year depends on the year that the
                     assessed value is associated with. Please refer to these
                     documents for specific values:{" "}
+                    <a href="https://files.tax.utah.gov/propertytax/srs/srs2026.pdf">
+                      Washington County (2025 figures temporarily used for 2026 data)
+                    </a>
+                    ,{" "}
                     <a href="https://files.tax.utah.gov/propertytax/srs/srs2025.pdf">
                       Davis, Morgan, Salt Lake, Tooele, and Weber Counties (2024
                       data)
@@ -98,14 +102,10 @@ function AboutPage() {
                     <a href="https://files.tax.utah.gov/propertytax/srs/srs2024.pdf">
                       Utah County (2023 data)
                     </a>
-                    ,{" "}
-                    <a href="https://files.tax.utah.gov/propertytax/srs/srs2023.pdf">
-                      Washington County (2022 data)
-                    </a>
                     .
                   </p>
                   <p>
-                    <strong>Last updated</strong>: 2025
+                    <strong>Last updated</strong>: 2026
                   </p>
                 </article>
                 <article className="copy-card">
@@ -119,6 +119,7 @@ function AboutPage() {
                       Example link for Davis County
                     </a>
                     .)
+                    (Please note that Washington County's assessed values are more recent than the available HPI ratios, so the ratio has been set to 1 until the data are available.)
                   </p>
                   <p>
                     <strong>Last updated</strong>: March 31, 2026

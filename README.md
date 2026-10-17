@@ -62,20 +62,21 @@ Then, populate each value in .env.
 
 ### Geodatabase
 
-The geodatabase (.gdb) will need to be downloaded manually.
+Run this command (from the project root directory):
 
-8. Go to https://opendata.gis.utah.gov/datasets/utah-housing-unit-inventory/about, then click "Download", then "Download" under File Geodatabase.
-9. Extract the ZIP file.
-10. Move the `{long-guid-text}.gdb` folder to the `data/raw/` directory underneath this project root directory.
-11. Rename the `{long-guid-text}.gdb` folder to `HousingUnitInventory.gdb`.
+8. `python3 -m pipeline.download_hui`
+
+This downloads the latest published Utah Housing Unit Inventory as a File Geodatabase to `data/raw/HousingUnitInventory.gdb` and prints its last-modified date and record count. The download link always serves the latest version, so data from two runs can differ if UGRC published an update in between. If a geodatabase is already there, the script stops; add `--replace` to overwrite it.
+
+To download it manually instead, go to https://opendata.gis.utah.gov/datasets/utah-housing-unit-inventory/about, click "Download", then "Download" under File Geodatabase. Extract the ZIP, then move its `{long-guid-text}.gdb` folder to `data/raw/` and rename it to `HousingUnitInventory.gdb`.
 
 ### Pipeline
 
 Run each of these commands (from the project root directory):
 
-12. `python3 -m pipeline.download_shapefiles`
-13. `python3 -m pipeline.generate_data`
-14. `python3 -m pipeline.download_acs_tables`
+9. `python3 -m pipeline.download_shapefiles`
+10. `python3 -m pipeline.generate_data`
+11. `python3 -m pipeline.download_acs_tables`
 
 Data artifacts will be generated in `PROJECT_ROOT/website/public/data`. This process must be re-run when data are updated.
 
@@ -83,9 +84,9 @@ Data artifacts will be generated in `PROJECT_ROOT/website/public/data`. This pro
 
 Run each of these commands (from the project root directory):
 
-15. `cd website/`
-16. `npm ci`
-17. `npm run build`
+12. `cd website/`
+13. `npm ci`
+14. `npm run build`
 
 The site will be built as a React/Vite single-page application in `PROJECT_ROOT/website/dist`. If data have been updated, the site must be rebuilt.
 
@@ -93,7 +94,7 @@ The site will be built as a React/Vite single-page application in `PROJECT_ROOT/
 
 The Polygon API uses Uvicorn as a server to interface between the FastAPI application and the browser. Run this command (from the project root directory):
 
-18. `uvicorn api.app:app --reload`
+15. `uvicorn api.app:app --reload`
 
 The API loads and filters the geodatabase before it starts accepting requests, which takes a while. `/api/health` responds once the API is ready.
 
@@ -135,7 +136,7 @@ Townhomes and condos are excluded because counties report them inconsistently: m
 
 Square footage (`TOT_BD_FT2`) is not comparable across counties: some report above-grade area only, others include basements. It is therefore not used as a measure, and it is often missing for recent builds whose values are already complete. A home with missing or zero square footage is kept only if its value is at least 50% of the median value of homes *with* square footage in the same county, city, and build year (or the same county and build year when the city has fewer than 10 such homes). This keeps finished homes and excludes unfinished homes carrying land-only or partial values.
 
-Places and ZIP Code Tabulation Areas with fewer than 20 matching homes are not published, because their percentiles would effectively describe individual parcels.
+Places and ZIP Code Tabulation Areas with fewer than 20 matching homes are not published, because their percentiles would effectively describe individual parcels. ZIP Code Tabulation Areas with less than half their area inside the covered counties are not published either, because they would describe only a fringe of the ZIP code (for example, the Washington County edge of Cedar City's 84720).
 
 Places and ZIP Code Tabulation Areas can span counties with different assessment years. A geography only gets an assessed year when at least 90% of its homes share that year (the same rule the Polygon API uses). Otherwise the website hides its assessed view, because values from different assessment years aren't comparable.
 
@@ -177,7 +178,7 @@ American Community Survey data from the 2020-2024 5-year estimates are provided 
 - **New construction lags.** Homes built after each county's `latest_year_built_with_value` are left out until their values are complete.
 - **Square footage isn't used.** Some counties include basements in `TOT_BD_FT2` and others don't.
 - **Income is a few years older.** The ACS 5-year estimates (2020–2024, in 2024 dollars) are older than the home values, so price-to-income ratios run slightly high.
-- **ZIP Code Tabulation Areas aren't ZIP codes.** They approximate USPS ZIP code areas, and a few extend into counties the dataset doesn't cover, so only their covered homes are counted.
+- **ZIP Code Tabulation Areas aren't ZIP codes.** They approximate USPS ZIP code areas. A few extend into counties the dataset doesn't cover; those mostly inside covered counties are published with only their covered homes counted, and the rest are left out.
 
 ## Updating the Data
 
@@ -189,9 +190,10 @@ There is a test suite that covers common scenarios and essential guardrails.
 
 - `tests/test_api.py` - Tests that the API loads its data at startup, returns valid data, and rejects invalid requests.
 - `tests/test_polygon_summary.py` - Tests some valid and invalid GeoJSON polygons.
-- `tests/test_validate_data.py` - Tests the home filters, the missing-square-footage cohort rule, the small-area and assessed-year rules, the market context and housing stock summaries, that empty output and missing required columns are rejected, and that failed updates or record count drops of more than 1% do not overwrite existing known good data.
+- `tests/test_validate_data.py` - Tests the home filters, the missing-square-footage cohort rule, the small-area and assessed-year rules, the market context and housing stock summaries, that empty output and missing required columns are rejected, and that failed updates, total record count drops of more than 1%, or drops of more than 5% in any one county do not overwrite existing known good data.
 - `tests/test_housing_loader.py` - Tests that broken source geometries are repaired or rejected when the geodatabase is loaded.
 - `tests/test_acs_tables.py` - Tests that unavailable Census values become `null` without dropping the rest of the row.
+- `tests/test_download_hui.py` - Tests that the geodatabase download finds the `.gdb` folder in the ZIP and never replaces an existing geodatabase without `--replace`.
 
 ### Running Tests
 

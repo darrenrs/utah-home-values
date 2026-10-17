@@ -13,7 +13,7 @@ Every file keys its records by the same IDs:
 | City or CDP | `place:{7-digit Census place GEOID}` | `place:4967000` (Salt Lake City) |
 | ZIP Code Tabulation Area | `zcta5:{5-digit ZCTA}` | `zcta5:84043` |
 
-Places and ZCTAs with fewer than 20 homes are not published.
+Places and ZCTAs with fewer than 20 homes are not published, and neither are ZCTAs with less than half their area in the covered counties.
 
 ## `manifest.json`
 

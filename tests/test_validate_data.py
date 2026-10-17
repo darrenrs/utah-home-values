@@ -1,11 +1,12 @@
 import geopandas as gpd
 import pandas as pd
 import pytest
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 
 from pipeline.generate_data import (
     DATASET_FILENAMES,
     build_market_context,
+    covered_area_shares,
     round_coordinates,
     summarize_housing_stock,
     drop_small_geographies,
@@ -399,3 +400,48 @@ def test_failed_update_does_not_overwrite_existing_data(tmp_path):
 
     assert existing_file.read_text() == '{"status":"published"}'
     assert not (output_dir / "manifest.json").exists()
+
+
+def test_covered_area_shares_measures_area_inside_covered_counties():
+    counties = gpd.GeoDataFrame(
+        {"STATEFP": ["49", "49"], "NAME": ["Utah", "Sanpete"]},
+        geometry=[box(-112.0, 40.0, -111.0, 41.0), box(-112.0, 39.0, -111.0, 40.0)],
+        crs="EPSG:4326",
+    )
+    zctas = gpd.GeoDataFrame(
+        {"ZCTA5_GEOID": ["84003", "84629"]},
+        geometry=[box(-111.8, 40.2, -111.6, 40.4), box(-111.6, 39.7, -111.4, 40.1)],
+        crs="EPSG:4326",
+    )
+
+    shares = covered_area_shares(zctas, "ZCTA5_GEOID", counties, {"Utah"})
+
+    assert shares["84003"] == pytest.approx(1.0)
+    assert shares["84629"] == pytest.approx(0.25, abs=0.01)
+
+
+def make_county_payload(counties):
+    return {"County": {county_id: {"n": n} for county_id, n in counties.items()}}
+
+
+def test_rejects_large_drop_in_one_county_when_total_is_within_limit():
+    previous = make_county_payload({"county:salt-lake": 200_000, "county:morgan": 2_000})
+    current = make_county_payload({"county:salt-lake": 200_000, "county:morgan": 1_000})
+
+    with pytest.raises(DataValidationError, match="county:morgan record count dropped by 50.0%"):
+        validate_record_count_change(previous, current)
+
+
+def test_rejects_county_missing_from_new_output():
+    previous = make_county_payload({"county:salt-lake": 200_000, "county:morgan": 2_000})
+    current = make_county_payload({"county:salt-lake": 200_000})
+
+    with pytest.raises(DataValidationError, match="county:morgan record count dropped by 100.0%"):
+        validate_record_count_change(previous, current)
+
+
+def test_allows_county_drop_within_five_percent():
+    previous = make_county_payload({"county:salt-lake": 200_000, "county:morgan": 2_000})
+    current = make_county_payload({"county:salt-lake": 200_000, "county:morgan": 1_920})
+
+    validate_record_count_change(previous, current)

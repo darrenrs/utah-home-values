@@ -3,6 +3,8 @@ import type { ValueStats } from "../data/loadData";
 import { formatCurrency } from "../lib/format";
 import { estimatePercentile, formatPercentileRank } from "../lib/percentiles";
 
+export const HOME_VALUE_LOOKUP_ID = "home-value-lookup";
+
 const MIN_LOOKUP_VALUE = 10_000;
 const MAX_LOOKUP_VALUE = 50_000_000;
 
@@ -36,7 +38,7 @@ function HomeValueLookup({
     : "";
 
   return (
-    <article className="lookup-panel">
+    <article className="lookup-panel" id={HOME_VALUE_LOOKUP_ID}>
       <div className="lookup-heading">
         <h2>Where Does a Home Value Fall?</h2>
         <p className="subheader-description">

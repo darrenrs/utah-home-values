@@ -231,7 +231,9 @@ The API sets `assessedValueYear` to `null` when fewer than 90% of units share a 
 
 **Recommendation.** In `join_shapefile`, compute `ASSESSED_VALUE_YEAR` with `primary_assessed_value_year(group, PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE)` per geography instead of mapping from `PRIMARY_COUNTY`.
 
-### 1.5 [Medium — n < 20 fixed 2026-10-16; coverage rule deferred] Small-sample geographies are published in the static JSON
+### 1.5 [Medium — fixed 2026-10-17] Small-sample geographies are published in the static JSON
+
+**Coverage rule done (2026-10-17).** ZIP codes are published only when at least half their area (`MIN_ZCTA_COVERED_AREA_SHARE = 0.5`) lies in the covered counties. `covered_area_shares` overlays the TIGER ZCTA shapes on the county boundaries, which is the same land-area measure as the Census ZCTA-to-county relationship file; 2020 housing counts by ZCTA and county aren't available from the Census API. This drops 84720 (31% covered) and 84629 (33%). The next lowest published ZIP codes are 84022 Dugway (75%) and 84604 Provo (88%). Everything else in the output is unchanged, and a test covers the measure.
 
 **Done (n < 20 only).** `drop_small_geographies` removes places and ZIP codes with fewer than 20 homes (`MIN_PUBLISHED_GEOGRAPHY_RECORD_COUNT`) before the catalog and both value files are built, and a test covers it. In the regenerated data (2026-10-17, $50K floor), this drops ZIP 84034 and ZIP 84056. Ophir (20) and ZIP 84720 (24, the Cedar City fringe) stay. Because the partial-coverage rule below is deferred, ZIP 84720 and ZIP 84629 (52 homes, about 5% coverage) are still published. The original analysis follows.
 
@@ -289,7 +291,7 @@ When the Census API returns `-666666666` for median income, `parse_number` raise
 - **`UNIT_ID` is not unique.** Washington's IDs (0–57k) collide with Salt Lake, Davis, and Weber IDs, so no current join is safe on `UNIT_ID`. Nothing uses it today; this is a trap for the future.
 - **[Fixed 2026-10-16] The $10K value floor was too low.** It is now $50K, with a test. A $100K floor was tried first, but it removed 34 genuine low-cost Wendover homes (median 876 sq ft, built around 1960, $43–89K), which pushed Wendover's median up 21%. With the 1.1b cohort rule handling land-only values for homes missing sq ft, $50K is enough. Wendover's median is unchanged at $159K.
 - **[Fixed 2026-10-17] `TOT_BD_FT2` validation is weak.** `TOT_BD_FT2` is now a required column, though its values may be missing. The filter uses `TOT_BD_FT2` and `IS_OUG`, but neither is in `REQUIRED_HOUSING_SOURCE_COLUMNS`. `IS_OUG` falls back safely when it's missing; a missing `TOT_BD_FT2` gives a bare `KeyError` instead of a `DataValidationError`.
-- **The record-count check is a loose proxy.** `validate_record_count_change` sums `n` across Region, County, Place, and ZCTA, so each home is counted about 3–4 times. That works as a proxy, but a county-level check would be more precise and easier to read.
+- **[Fixed 2026-10-17] The record-count check is a loose proxy.** A per-county check now also refuses a drop of more than 5% in any one county, with tests; the 1% total check stays. `validate_record_count_change` sums `n` across Region, County, Place, and ZCTA, so each home is counted about 3–4 times. That works as a proxy, but a county-level check would be more precise and easier to read.
 - **Places miss unincorporated homes, as expected.** 12,874 homes (2.1%) fall outside any Census place. They appear only in county and ZCTA results.
 
 ### 1.9 [Medium — fixed 2026-10-17] Setup and pipeline robustness bugs
@@ -413,7 +415,7 @@ The README is solid on setup. These additions would most improve how the project
    - Add a "Updating for a new data release" checklist: which PDF table and row gives the ASR, which FRED series gives the HPI and how to compute the ratio, how to pick `latest_year_built_with_value` (for example, the last build year whose median isn't land-only), and which About-page dates to bump.
    - Put a per-value source comment in the YAML.
 5. **Add an output data dictionary.** Document the schema of `geographies.json`, `hui_*_values.json`, `acs_values.json`, and `manifest.json`, including the meaning of `percentiles[i]`, the `$1,000` rounding, and the ID formats (`place:49xxxxx`, `zcta5:84xxx`, `county:salt-lake`). People who want to reuse the data will look for this.
-**Status (2026-10-17):** items 2–7 are done. The README has How It Works (with a Mermaid diagram and the formula), Limitations, Updating the Data and an expanded Testing section. `docs/UPDATING.md` is the yearly runbook, the config files document their fields, `docs/DATA.md` is the output data dictionary, and CI runs pytest, the type check and a build. Items 1 (screenshots) and 8 (geodatabase download script) are still open.
+**Status (2026-10-17):** items 2–7 are done. The README has How It Works (with a Mermaid diagram and the formula), Limitations, Updating the Data and an expanded Testing section. `docs/UPDATING.md` is the yearly runbook, the config files document their fields, `docs/DATA.md` is the output data dictionary, and CI runs pytest, the type check and a build. Item 8 is done too: `pipeline/download_hui.py` downloads the latest geodatabase from the portal's fixed download link (its attributes match the 2026-10-14 dump in use). Item 1 (screenshots) is still open.
 
 6. **Fix the README errors.**
    - ~~The FHFA HPI description~~ and ~~the `##` heading~~ are fixed (2026-10-16).

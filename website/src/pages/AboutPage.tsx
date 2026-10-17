@@ -140,7 +140,11 @@ function AboutPage() {
                         unincorporated communities that a city name field would
                         miss.
                       </li>
-                      <li>Areas with fewer than 20 homes are not published.</li>
+                      <li>
+                        Areas with fewer than 20 homes are not published, and
+                        neither are ZIP codes lying mostly outside the seven
+                        counties.
+                      </li>
                       <li>
                         An area shows assessed values only when at least 90% of
                         its homes share one assessment year.

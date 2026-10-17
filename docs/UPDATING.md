@@ -6,14 +6,14 @@ The sources update on different schedules. This checklist covers each kind of up
 
 UGRC publishes new HUI dumps a few times a year, usually when a county submits new records.
 
-1. Download the new File Geodatabase and replace `data/raw/HousingUnitInventory.gdb` (README steps 8–11).
+1. Run `python3 -m pipeline.download_hui --replace` to replace `data/raw/HousingUnitInventory.gdb` with the latest version. It prints the file's last-modified date and record count.
 2. For each county, check whether its assessed year changed. If it did, update `assessed_value_year` in `config/counties.yml`, plus the `assessment_sales_ratio` and `hpi_ratio` that depend on it (see the sections below).
 3. Check `latest_year_built_with_value` for each county. It should be the last build year whose homes carry finished values. Compare the median value of each recent build year with the year before it: a build year whose median is far lower (for example under about $350K on the Wasatch Front) is still mostly land-only, so it belongs after the cutoff.
 4. Run `python3 -m pipeline.generate_data`, then `python3 -m pipeline.download_acs_tables`.
 5. Update the "Utah Housing Unit Inventory" date on the About page (`website/src/pages/AboutPage.tsx`) and the "As of" date in the README.
 6. Rebuild and deploy the site.
 
-`generate_data` refuses to overwrite the published files when the total record count drops by more than 1%. If the drop is expected, for example because a filter changed, move the current `website/public/data/hui_*_values.json` files aside before the run.
+`generate_data` refuses to overwrite the published files when the total record count drops by more than 1%, or when any one county's count drops by more than 5%. If the drop is expected, for example because a filter changed, move the current `website/public/data/hui_*_values.json` files aside before the run.
 
 ## Each spring: roll the market-value year forward
 

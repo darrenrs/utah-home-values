@@ -49,7 +49,9 @@ def total_count(payload):
     return sum(stats["n"] for section in payload.values() for stats in section.values())
 
 
-def validate_record_count_change(previous, current, max_drop_ratio=0.01):
+def validate_record_count_change(
+    previous, current, max_drop_ratio=0.01, max_county_drop_ratio=0.05
+):
     previous_count = total_count(previous)
     current_count = total_count(current)
 
@@ -60,3 +62,20 @@ def validate_record_count_change(previous, current, max_drop_ratio=0.01):
 
     if drop_ratio > max_drop_ratio:
         raise DataValidationError(f"record count dropped by {drop_ratio:.1%}")
+
+    # The statewide total can hide a large loss in one small county (Morgan is
+    # under 2% of all homes), so each county is checked on its own as well.
+    current_counties = current.get("County", {})
+    for county_id, previous_stats in previous.get("County", {}).items():
+        previous_county_count = previous_stats["n"]
+        current_county_count = current_counties.get(county_id, {"n": 0})["n"]
+
+        if previous_county_count == 0:
+            continue
+
+        county_drop_ratio = (previous_county_count - current_county_count) / previous_county_count
+
+        if county_drop_ratio > max_county_drop_ratio:
+            raise DataValidationError(
+                f"{county_id} record count dropped by {county_drop_ratio:.1%}"
+            )

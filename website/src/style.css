@@ -285,6 +285,24 @@ footer a,
   text-transform: uppercase;
 }
 
+.hero-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font-family: var(--font-sans);
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hero-link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
 .value-control-note {
   color: var(--muted);
   font-size: 0.8rem;
@@ -1001,6 +1019,8 @@ canvas:focus-visible {
   display: grid;
   gap: 1rem;
   padding: 1.25rem;
+  /* Clear the sticky header when the hero link scrolls here. */
+  scroll-margin-top: calc(72px + 1rem);
 }
 
 .lookup-heading {

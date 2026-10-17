@@ -56,6 +56,9 @@ PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE = 0.9
 MIN_SINGLE_FAMILY_ACRES = 0.05
 SMALL_LOT_EXEMPT_BEFORE_YEAR = 2000
 MIN_PUBLISHED_GEOGRAPHY_RECORD_COUNT = 20
+MIN_ZCTA_COVERED_AREA_SHARE = 0.5
+# NAD83 / Conus Albers, an equal-area projection for comparing land areas
+EQUAL_AREA_CRS = "EPSG:5070"
 MIN_RECORDED_BUILDING_SQFT = 100
 MISSING_SQFT_MIN_COHORT_VALUE_SHARE = 0.5
 MIN_CITY_COHORT_SIZE = 10
@@ -149,14 +152,39 @@ def summarize_housing_stock(df: pd.DataFrame):
     }
 
 
-def load_county_boundaries(county_names):
-    counties = gpd.read_file(
+def load_county_shapes():
+    return gpd.read_file(
         f"zip://{SHAPEFILE_COUNTY_ZIP_PATH}", columns=["STATEFP", "NAME", "geometry"]
     )
+
+
+def load_county_boundaries(county_names):
+    counties = load_county_shapes()
     counties = counties[
         (counties["STATEFP"] == UTAH_STATE_FIPS) & counties["NAME"].isin(county_names)
     ]
     return simplified_boundary_features(counties, "NAME", "county")
+
+
+# Share of each shape's area that lies in the covered Utah counties. Area stands
+# in for homes, the same measure as the Census ZCTA-to-county relationship file.
+def covered_area_shares(
+    shapes: gpd.GeoDataFrame, id_col: str, counties: gpd.GeoDataFrame, covered_county_names
+):
+    counties = counties.to_crs(EQUAL_AREA_CRS)
+    counties["covered"] = (counties["STATEFP"] == UTAH_STATE_FIPS) & counties["NAME"].isin(
+        covered_county_names
+    )
+    pieces = gpd.overlay(
+        shapes[[id_col, "geometry"]].to_crs(EQUAL_AREA_CRS),
+        counties[["covered", "geometry"]],
+        how="intersection",
+        keep_geom_type=True,
+    )
+    pieces["area"] = pieces.area
+    total_area = pieces.groupby(id_col)["area"].sum()
+    covered_area = pieces[pieces["covered"]].groupby(id_col)["area"].sum()
+    return covered_area.reindex(total_area.index, fill_value=0) / total_area
 
 
 def round_coordinates(coordinates, decimals=BOUNDARY_COORDINATE_DECIMALS):
@@ -197,6 +225,7 @@ def join_shapefile(
     column_mappings: dict[str, str],
     id_col: str,
     namespace: str,
+    min_covered_area_share: float | None = None,
 ):
     group_cols = list(column_mappings.values())
     shapes = gpd.read_file(
@@ -241,6 +270,23 @@ def join_shapefile(
 
     raw_stats = drop_small_geographies(raw_stats)
     adjusted_stats = drop_small_geographies(adjusted_stats)
+
+    # A ZIP code lying mostly outside the covered counties would be labeled
+    # with the whole ZIP code, and paired with ZIP-wide ACS figures, while
+    # describing only a sliver of its homes.
+    if min_covered_area_share is not None:
+        shares = covered_area_shares(
+            shapes[shapes[id_col].isin(raw_stats[id_col])],
+            id_col,
+            load_county_shapes(),
+            set(hui_valid["COUNTY"]),
+        )
+        covered_ids = set(shares[shares >= min_covered_area_share].index)
+        raw_stats = raw_stats[raw_stats[id_col].isin(covered_ids)].reset_index(drop=True)
+        adjusted_stats = adjusted_stats[adjusted_stats[id_col].isin(covered_ids)].reset_index(
+            drop=True
+        )
+
     published_ids = set(raw_stats[id_col])
 
     housing_stock = {
@@ -815,7 +861,12 @@ def main():
     }
 
     zcta5s = join_shapefile(
-        hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID", "zcta5"
+        hui_valid,
+        SHAPEFILE_ZCTA5_ZIP_PATH,
+        column_mappings_zcta5,
+        "ZCTA5_GEOID",
+        "zcta5",
+        min_covered_area_share=MIN_ZCTA_COVERED_AREA_SHARE,
     )
     zcta5_raw_stats, zcta5_adjusted_stats = zcta5s.raw_stats, zcta5s.adjusted_stats
 

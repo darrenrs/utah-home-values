@@ -10,6 +10,25 @@ import {
 import { formatNumber } from "../lib/format";
 import { withBaseUrl } from "../lib/baseUrl";
 import PageTitle from "../components/PageTitle";
+import { HOME_VALUE_LOOKUP_ID } from "../components/HomeValueLookup";
+
+// The URL hash holds the selected geography, so this scrolls to the lookup
+// instead of linking to it.
+function focusHomeValueLookup() {
+  const lookup = document.getElementById(HOME_VALUE_LOOKUP_ID);
+  if (!lookup) {
+    return;
+  }
+
+  const reduceMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
+  lookup.scrollIntoView({
+    behavior: reduceMotion ? "auto" : "smooth",
+    block: "start",
+  });
+  lookup.querySelector("input")?.focus({ preventScroll: true });
+}
 
 function CoverageStats({ data }: { data: AttributeData }) {
   const homes = Object.values(data.County).reduce(
@@ -56,6 +75,15 @@ function HeroSection({ dataBundle }: { dataBundle?: DataBundle }) {
             <strong>Utah cities, counties, ZIP codes, and regions</strong>.
           </p>
           {dataBundle && <CoverageStats data={dataBundle.datasets.market} />}
+          {dataBundle && (
+            <button
+              type="button"
+              className="hero-link"
+              onClick={focusHomeValueLookup}
+            >
+              Look up a home value <span aria-hidden="true">→</span>
+            </button>
+          )}
         </div>
         <div
           className="hero-image-frame hero-image-frame-desktop"

@@ -4,6 +4,20 @@
 
 A data pipeline and interactive website for exploring single-family home values and affordability metrics for counties, cities, and ZIP Code Tabulation Areas in Utah based on public data sources. Currently available live at https://darrenskidmore.com/projects/utah-home-values.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/map_dark.png">
+  <img src="docs/images/map_light.png" alt="Map of the Wasatch Front with each city and CDP shaded by median home value, from under $400K to $1M or more. Provo is highlighted, with a readout showing a $522K median across 14,131 homes.">
+</picture>
+
+*The explorer's map shades each city, CDP, ZIP code, or county by its median market-adjusted home value. Hovering over an area shows its median and number of homes (here, Provo: $522K across 14,131 homes), and clicking it opens the area's full summary: percentiles, a comparison with its county, housing stock, and affordability.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/ranking_dark.png">
+  <img src="docs/images/ranking_light.png" alt="Rankings table for a $1,000,000 home value. Sundance ranks first at the 24th percentile, followed by West Mountain at 31%, Alpine at 39%, Wolf Creek at 41%, Eden at 44%, and Enterprise at 45%.">
+</picture>
+
+*The Rankings page shows where one home value falls in every area. A $1,000,000 home is only at the 24th percentile in Sundance, the most expensive market at that price, but would sit near the middle in Eden or Enterprise. Areas can also be ranked by the home value at a given percentile, and the table downloads as CSV.*
+
 ## Features
 
 - Fully deterministic data pipeline based on five official data sources

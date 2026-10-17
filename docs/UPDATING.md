@@ -11,6 +11,7 @@ UGRC publishes new HUI dumps a few times a year, usually when a county submits n
 3. Check `latest_year_built_with_value` for each county. It should be the last build year whose homes carry finished values. Compare the median value of each recent build year with the year before it: a build year whose median is far lower (for example under about $350K on the Wasatch Front) is still mostly land-only, so it belongs after the cutoff.
 4. Run `python3 -m pipeline.generate_data`, then `python3 -m pipeline.download_acs_tables`.
 5. Update the "Utah Housing Unit Inventory" date on the About page (`website/src/pages/AboutPage.tsx`) and the "As of" date in the README.
+   If the site's layout has changed, also retake the README screenshots in `docs/images/` (light and dark).
 6. Rebuild and deploy the site.
 
 `generate_data` refuses to overwrite the published files when the total record count drops by more than 1%, or when any one county's count drops by more than 5%. If the drop is expected, for example because a filter changed, move the current `website/public/data/hui_*_values.json` files aside before the run.

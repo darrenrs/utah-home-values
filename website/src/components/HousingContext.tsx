@@ -51,9 +51,11 @@ function affordabilityDescription(value: number) {
 
 function HousingContext({
   acsValues,
+  acsVintageYear,
   homeValueStats,
 }: {
   acsValues?: AcsGeographyValues;
+  acsVintageYear?: number;
   homeValueStats: ValueStats;
 }) {
   const medianHomeValue = homeValueStats.percentiles[49];
@@ -161,8 +163,9 @@ function HousingContext({
       <p className="data-note">
         Labels follow the Demographia scale: 3.0 or below is affordable, 3.1 to
         4.0 moderately unaffordable, 4.1 to 5.0 seriously unaffordable, and
-        above 5.0 severely unaffordable. Incomes are 2020–2024 American
-        Community Survey estimates, so ratios run slightly high.
+        above 5.0 severely unaffordable. Incomes are{" "}
+        {acsVintageYear ? `${acsVintageYear - 4}–${acsVintageYear} ` : ""}
+        American Community Survey 5-year estimates, so ratios run slightly high.
       </p>
     </section>
   );

@@ -446,6 +446,7 @@ function ChoroplethMap({
     map && viewBox && viewBox.width < map.full.width - 0.5,
   );
   const levelLabel = MAP_LEVELS.find((item) => item.id === level)!.label;
+  const selectedShape = map?.shapes.find((shape) => shape.id === selectedId);
 
   if (!dataBundle.boundariesUrl) {
     return null;
@@ -536,7 +537,7 @@ function ChoroplethMap({
                 {map.shapes.map((shape) => (
                   <path
                     key={shape.id}
-                    className={`map-area${shape.id === selectedId ? " is-selected" : ""}${shape.id === hoveredId ? " is-hovered" : ""}`}
+                    className={`map-area${shape.id === hoveredId ? " is-hovered" : ""}`}
                     style={{ fill: `var(--seq-${shape.bin})` }}
                     d={shape.d}
                     onMouseEnter={() => setHoveredId(shape.id)}
@@ -545,6 +546,10 @@ function ChoroplethMap({
                     <title>{dataBundle.geographies[shape.id]?.name}</title>
                   </path>
                 ))}
+                {/* Drawn last so neighboring areas can't cover its outline. */}
+                {selectedShape && (
+                  <path className="map-selected-outline" d={selectedShape.d} />
+                )}
               </svg>
 
               <div className="map-zoom" role="group" aria-label="Map zoom">

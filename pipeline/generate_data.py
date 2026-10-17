@@ -265,8 +265,8 @@ def load_market_context_config():
         return yaml.safe_load(f)
 
 
-# Per-county adjustment factors and metro price changes for the site's
-# calculator, market-value label, and "prices since" note.
+# Per-county assessed years and metro price changes for the site's
+# market-value label and "prices since" note.
 def build_market_context(county_quality, market_config):
     metros = {}
     metro_by_county = {}
@@ -282,7 +282,6 @@ def build_market_context(county_quality, market_config):
 
     counties = {
         geography_id("county", county): {
-            "adjustmentFactor": round(quality["hpi_ratio"] / quality["assessment_sales_ratio"], 4),
             "assessedValueYear": clean_year(quality["assessed_value_year"]),
             "metro": metro_by_county.get(county),
         }
@@ -317,7 +316,10 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
         # Detached single-family homes only. Townhomes and condos are reported
         # inconsistently across counties (mostly grouped outside Utah County).
         (hui_raw["SUBTYPE"] == "single_family")
-        # Not an owned-unit grouping. Null is treated as non-OUG.
+        # Not an owned-unit grouping. Null is treated as non-OUG: several
+        # counties leave IS_OUG blank for recent builds, but single-family
+        # records are OUG under 1% of the time, so this lets through at most
+        # a few dozen grouped records.
         & (hui_raw["IS_OUG_CLEAN"].fillna(0) != 1)
         # One dwelling unit represented by the record
         & (hui_raw["UNIT_COUNT"] == 1)

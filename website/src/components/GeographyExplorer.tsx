@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
+import type {
   Chart as ChartJS,
-  registerables,
-  type ChartConfiguration,
-  type TooltipItem,
+  ChartConfiguration,
+  TooltipItem,
 } from "chart.js";
 import type {
   AttributeData,
@@ -27,8 +26,19 @@ import HomeValueLookup from "./HomeValueLookup";
 import HousingContext from "./HousingContext";
 import HousingStock from "./HousingStock";
 
-ChartJS.register(...registerables);
-ChartJS.defaults.font.family = "'Spline Sans Mono Variable', monospace";
+let chartJsPromise: Promise<typeof ChartJS> | undefined;
+
+// Chart.js is the largest dependency, so it loads in its own chunk after the
+// page has rendered.
+function loadChartJs() {
+  return (chartJsPromise ??= import("chart.js").then(
+    ({ Chart, registerables }) => {
+      Chart.register(...registerables);
+      Chart.defaults.font.family = "'Spline Sans Mono Variable', monospace";
+      return Chart;
+    },
+  ));
+}
 
 type PercentilePoint = {
   percentile: number;
@@ -378,8 +388,6 @@ function PercentileChart({
       return undefined;
     }
 
-    chartRef.current?.destroy();
-
     const colors = {
       font: getRootCssValue(
         "--font-mono",
@@ -552,9 +560,18 @@ function PercentileChart({
       },
     ];
 
-    chartRef.current = new ChartJS(canvasRef.current, config);
+    let cancelled = false;
+    loadChartJs().then((Chart) => {
+      if (cancelled || !canvasRef.current) {
+        return;
+      }
+
+      chartRef.current?.destroy();
+      chartRef.current = new Chart(canvasRef.current, config);
+    });
 
     return () => {
+      cancelled = true;
       chartRef.current?.destroy();
       chartRef.current = null;
     };
@@ -1187,7 +1204,8 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                   {!customAreaSummary &&
                     activeSelectedId !== WASATCH_FRONT_ID && (
                       <HousingContext
-                        acsValues={acsValues.geographies[activeSelectedId]}
+                        acsValues={acsValues?.geographies[activeSelectedId]}
+                        acsVintageYear={acsValues?.acsVintageYear}
                         homeValueStats={
                           datasets.market[sectionForGeoType(geoType)][
                             activeSelectedId

@@ -1,3 +1,17 @@
+# One entry per county in the Housing Unit Inventory. Fields:
+#   is_valid: include the county's records. Counties without reliable values are false
+#     and need no other fields.
+#   is_wasatch_front: include the county in the Wasatch Front region.
+#   assessed_value_year: the Jan 1 assessment year of the county's TOT_VALUE figures.
+#   latest_year_built_with_value: the last build year included. Later builds are still
+#     partly assessed (land-only or unfinished), so they would pull medians down.
+#   assessment_sales_ratio: the county's Residential median assessment/sales ratio from
+#     the Utah State Tax Commission study published the year after assessed_value_year
+#     (srs{Y+1}.pdf matches sales to Jan 1, Y assessments).
+#   hpi_ratio: price change from the assessment date to market_value_year in
+#     market_context.yml (see below).
+# The yearly update steps are in docs/UPDATING.md.
+#
 # hpi_ratio converts a Jan 1 (assessment-date) market value to the 2025 annual average:
 #   hpi_ratio = [county_annual(2025) / county_annual(Y)] * [metro_avg(Y) / metro_jan1(Y)]
 # where Y = assessed_value_year, metro_jan1(Y) = mean(metro Q4 of Y-1, metro Q1 of Y),
@@ -13,7 +27,6 @@ Davis:
   is_wasatch_front: true
   assessed_value_year: 2024
   latest_year_built_with_value: 2023
-  latest_year_built_with_oug_set: 2021
   assessment_sales_ratio: 0.9673
   # ATNHPIUS49011A 306.40 / 300.38; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
   hpi_ratio: 1.0438
@@ -23,7 +36,6 @@ Morgan:
   is_wasatch_front: false
   assessed_value_year: 2024
   latest_year_built_with_value: 2022
-  latest_year_built_with_oug_set: 2023
   assessment_sales_ratio: 0.9748
   # ATNHPIUS49029A 324.06 / 316.60; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
   hpi_ratio: 1.0474
@@ -33,7 +45,6 @@ Salt Lake:
   is_wasatch_front: true
   assessed_value_year: 2024
   latest_year_built_with_value: 2023
-  latest_year_built_with_oug_set: 2021
   assessment_sales_ratio: 1.0003
   # ATNHPIUS49035A 341.57 / 332.93; Salt Lake City-Murray ATNHPIUS41620Q avg 2024 470.60 / Jan 1 455.430
   hpi_ratio: 1.0601
@@ -43,7 +54,6 @@ Tooele:
   is_wasatch_front: false
   assessed_value_year: 2024
   latest_year_built_with_value: 2023
-  latest_year_built_with_oug_set: 2023
   assessment_sales_ratio: 0.9763
   # ATNHPIUS49045A 304.43 / 301.48; Salt Lake City-Murray ATNHPIUS41620Q avg 2024 470.60 / Jan 1 455.430
   hpi_ratio: 1.0434
@@ -53,7 +63,6 @@ Utah:
   is_wasatch_front: true
   assessed_value_year: 2023
   latest_year_built_with_value: 2022
-  latest_year_built_with_oug_set: 2025
   assessment_sales_ratio: 0.9590
   # ATNHPIUS49049A 309.82 / 289.88; Provo-Orem-Lehi ATNHPIUS39340Q avg 2023 407.01 / Jan 1 401.555
   hpi_ratio: 1.0833
@@ -63,7 +72,6 @@ Washington:
   is_wasatch_front: false
   assessed_value_year: 2026
   latest_year_built_with_value: 2026
-  latest_year_built_with_oug_set: 2026
   # Warning: srs2026 (2025 assessments) used as a stand-in until srs2027 is published
   assessment_sales_ratio: 0.9523
   # No 2026 county annual yet, so metro only: St. George ATNHPIUS41100Q avg 2025 373.37 / Jan 1 2026 378.365
@@ -74,7 +82,6 @@ Weber:
   is_wasatch_front: true
   assessed_value_year: 2024
   latest_year_built_with_value: 2023
-  latest_year_built_with_oug_set: 2022
   assessment_sales_ratio: 0.9450
   # ATNHPIUS49057A 323.73 / 314.03; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
   hpi_ratio: 1.0549

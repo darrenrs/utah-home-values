@@ -1,8 +1,10 @@
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated, Any
 
 import geopandas as gpd
 from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 from pipeline.generate_data import (
@@ -13,18 +15,29 @@ from pipeline.generate_data import (
 
 MINIMUM_RECORD_COUNT = 100
 
-app = FastAPI(title="Utah Home Values Explorer Custom Polygon API")
+
+@lru_cache(maxsize=1)
+def get_housing_points() -> gpd.GeoDataFrame:
+    return load_polygon_summary_housing_points()
+
+
+# Load the housing data before the server accepts requests, so the first
+# polygon request doesn't pay the load time and /api/health only answers once
+# the API is ready. Tests swap the loader through dependency_overrides.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    loader = app.dependency_overrides.get(get_housing_points, get_housing_points)
+    await run_in_threadpool(loader)
+    yield
+
+
+app = FastAPI(title="Utah Home Values Explorer Custom Polygon API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
-
-@lru_cache(maxsize=1)
-def get_housing_points() -> gpd.GeoDataFrame:
-    return load_polygon_summary_housing_points()
 
 
 @app.get("/api/health")

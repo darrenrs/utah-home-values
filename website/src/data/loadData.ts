@@ -48,7 +48,6 @@ export type MarketContext = {
   counties: Record<
     string,
     {
-      adjustmentFactor: number;
       assessedValueYear: number | null;
       metro: string | null;
     }
@@ -103,7 +102,9 @@ type DataManifest = {
 export type DataBundle = {
   geographies: GeographyCatalog;
   datasets: Record<ValueMode, AttributeData>;
-  acsValues: AcsValues;
+  // Missing when the ACS download hasn't run or failed; Housing Context then
+  // shows "Not available".
+  acsValues?: AcsValues;
   // Missing when the data predates market context; features that need it hide.
   marketContext?: MarketContext;
   housingStock?: HousingStock;
@@ -113,8 +114,8 @@ export type DataBundle = {
 
 let dataPromise: Promise<DataBundle> | undefined;
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
 
   if (!response.ok) {
     throw new Error(`Data request failed (${response.status}): ${url}`);
@@ -149,13 +150,23 @@ function assertSupportedManifest(
   }
 }
 
-function resolveDatasetUrl(manifestUrl: string, datasetPath: string) {
-  return new URL(datasetPath, new URL(manifestUrl, window.location.href)).href;
+// Dataset file names stay the same between data updates, so each URL carries
+// the manifest's generation time. A browser that cached the previous files then
+// fetches the new ones, and unchanged data stays cached.
+function resolveDatasetUrl(
+  manifest: DataManifest,
+  manifestUrl: string,
+  datasetPath: string,
+) {
+  const url = new URL(datasetPath, new URL(manifestUrl, window.location.href));
+  url.searchParams.set("v", manifest.generatedAt);
+  return url.href;
 }
 
 async function fetchData(): Promise<DataBundle> {
   const manifestUrl = withBaseUrl("data/manifest.json");
-  const manifest = await fetchJson<unknown>(manifestUrl);
+  // Always revalidate the manifest; it is small and names the current data.
+  const manifest = await fetchJson<unknown>(manifestUrl, { cache: "no-cache" });
 
   assertSupportedManifest(manifest);
 
@@ -170,25 +181,33 @@ async function fetchData(): Promise<DataBundle> {
     housingStock,
   ] = await Promise.all([
     fetchJson<GeographyCatalog>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.geographies),
+      resolveDatasetUrl(manifest, manifestUrl, manifest.datasets.geographies),
     ),
     fetchJson<AttributeData>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.huiMarketAdjustedValues),
+      resolveDatasetUrl(
+        manifest,
+        manifestUrl,
+        manifest.datasets.huiMarketAdjustedValues,
+      ),
     ),
     fetchJson<AttributeData>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.huiAssessedValues),
+      resolveDatasetUrl(
+        manifest,
+        manifestUrl,
+        manifest.datasets.huiAssessedValues,
+      ),
     ),
     fetchJson<AcsValues>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.acsValues),
-    ),
+      resolveDatasetUrl(manifest, manifestUrl, manifest.datasets.acsValues),
+    ).catch(() => undefined),
     marketContextPath
       ? fetchJson<MarketContext>(
-          resolveDatasetUrl(manifestUrl, marketContextPath),
+          resolveDatasetUrl(manifest, manifestUrl, marketContextPath),
         )
       : Promise.resolve(undefined),
     housingStockPath
       ? fetchJson<HousingStock>(
-          resolveDatasetUrl(manifestUrl, housingStockPath),
+          resolveDatasetUrl(manifest, manifestUrl, housingStockPath),
         )
       : Promise.resolve(undefined),
   ]);
@@ -203,7 +222,7 @@ async function fetchData(): Promise<DataBundle> {
     marketContext,
     housingStock,
     boundariesUrl: manifest.datasets.boundaries
-      ? resolveDatasetUrl(manifestUrl, manifest.datasets.boundaries)
+      ? resolveDatasetUrl(manifest, manifestUrl, manifest.datasets.boundaries)
       : undefined,
   };
 }

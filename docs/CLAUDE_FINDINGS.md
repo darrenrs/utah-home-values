@@ -138,6 +138,7 @@ The pipeline doesn't use sq ft for anything except the `100 <= TOT_BD_FT2 <= 30,
 - **The problem is mostly Utah County homes built 2017–2019, not everything before 2019.** 38 of the 62 built 2017–2019 are under half their cohort median. That fits lots where a home was started but the value hadn't caught up by the assessment date. Older Utah County zero-sq-ft homes are worth about the same as their neighbors.
 - **Across all Utah County homes built before 2020**, 82 of 1,170 fall under 50%: the 2017–2019 cluster plus scattered older ones (Payson, Highland, Provo, Mapleton). Their median is $178K; the other 1,088 have a median of $510K.
 - **Davis 2000–2014 is a little soft** (median ratio 0.62), but none are under $100K. It's worth a look, not an exclusion.
+  - **Resolved 2026-10-17:** after the filters, 290 remain, all built 2010–2014, and 285 are in North Salt Lake on 0.06–0.15 acre lots. A spot check confirmed they're real single-family homes, small and on very small lots, so their values are complete. The cohort rule keeps them correctly; no change needed.
 - **The $100K floor doesn't solve this.** It only catches 15 of the 82 Utah County cases, because land values here are often $150–300K.
 
 **Updated recommendation (still parked):** replace the `100 <= TOT_BD_FT2` bound with the cohort rule: keep a zero- or null-sq-ft home only if its value is at least 50% of the median for homes with sq ft in its county, city and build year. On the current data that brings back about 7,600 homes (mostly 2020+ new builds in Utah and Davis) and still excludes the 82 Utah County partials. Because it's relative to each cohort, it also adapts if a future dump has land-only values again.
@@ -261,7 +262,9 @@ The real risk is 84720 and 84629: they're labeled with a whole ZIP code, and the
 - Also drop ZIP codes whose land area lies mostly outside the covered counties. Compute that from the Census 2020 ZCTA-to-county relationship file in the pipeline, rather than from ACS ratios, which miscount seasonal areas. This removes 84720 and 84629 for the right reason.
 - Keep the small but fully covered communities. They're real places, and the UI already warns below 100.
 
-### 1.6 [Low] `latest_year_built_with_oug_set` is dead config
+### 1.6 [Low — fixed 2026-10-17] `latest_year_built_with_oug_set` is dead config
+
+**Done.** The field is removed from `counties.yml`, and the `IS_OUG` filter has a comment explaining why null counts as not OUG. The original analysis follows.
 
 The field is defined for every county but never read. The data confirms what it describes. `IS_OUG` is null for:
 - 97–99% of Salt Lake records built after 2021
@@ -285,11 +288,13 @@ When the Census API returns `-666666666` for median income, `parse_number` raise
 - **Possible duplicate records.** 1,901 records that pass the basic filters are exact duplicates on every field except `UNIT_ID`. Most are Utah County condos built 2020–2022 and Washington condos. They may be legitimate stacked units that share a footprint, but they're worth a spot check.
 - **`UNIT_ID` is not unique.** Washington's IDs (0–57k) collide with Salt Lake, Davis, and Weber IDs, so no current join is safe on `UNIT_ID`. Nothing uses it today; this is a trap for the future.
 - **[Fixed 2026-10-16] The $10K value floor was too low.** It is now $50K, with a test. A $100K floor was tried first, but it removed 34 genuine low-cost Wendover homes (median 876 sq ft, built around 1960, $43–89K), which pushed Wendover's median up 21%. With the 1.1b cohort rule handling land-only values for homes missing sq ft, $50K is enough. Wendover's median is unchanged at $159K.
-- **`TOT_BD_FT2` validation is weak.** The filter uses `TOT_BD_FT2` and `IS_OUG`, but neither is in `REQUIRED_HOUSING_SOURCE_COLUMNS`. `IS_OUG` falls back safely when it's missing; a missing `TOT_BD_FT2` gives a bare `KeyError` instead of a `DataValidationError`.
+- **[Fixed 2026-10-17] `TOT_BD_FT2` validation is weak.** `TOT_BD_FT2` is now a required column, though its values may be missing. The filter uses `TOT_BD_FT2` and `IS_OUG`, but neither is in `REQUIRED_HOUSING_SOURCE_COLUMNS`. `IS_OUG` falls back safely when it's missing; a missing `TOT_BD_FT2` gives a bare `KeyError` instead of a `DataValidationError`.
 - **The record-count check is a loose proxy.** `validate_record_count_change` sums `n` across Region, County, Place, and ZCTA, so each home is counted about 3–4 times. That works as a proxy, but a county-level check would be more precise and easier to read.
 - **Places miss unincorporated homes, as expected.** 12,874 homes (2.1%) fall outside any Census place. They appear only in county and ZCTA results.
 
-### 1.9 [Medium] Setup and pipeline robustness bugs
+### 1.9 [Medium — fixed 2026-10-17] Setup and pipeline robustness bugs
+
+**Done.** `download_shapefiles.py` now uses the standard library (no `requests`), creates its directory, sets a timeout, and writes each file atomically. A missing ACS file no longer breaks the site; Housing Context shows "Not available". The API loads its data in a `lifespan` hook before accepting requests. The original analysis follows.
 
 - **`pipeline/download_shapefiles.py` fails on a fresh clone.** It imports `requests`, which isn't in `requirements.txt`. It also writes to `data/raw/shapefiles/`, which nothing creates; README step 6 only runs `mkdir -p data/raw/`. It has no `timeout=` either.
 - **A missing ACS file breaks the whole site.** `generate_data` writes a manifest that points to `acs_values.json`, but it doesn't produce that file. Running the documented steps out of order, or with a failed ACS fetch, makes `loadData()`'s `Promise.all` reject, and the explorer shows nothing. ACS is supplementary, so load it with a fallback to `undefined`.
@@ -408,6 +413,8 @@ The README is solid on setup. These additions would most improve how the project
    - Add a "Updating for a new data release" checklist: which PDF table and row gives the ASR, which FRED series gives the HPI and how to compute the ratio, how to pick `latest_year_built_with_value` (for example, the last build year whose median isn't land-only), and which About-page dates to bump.
    - Put a per-value source comment in the YAML.
 5. **Add an output data dictionary.** Document the schema of `geographies.json`, `hui_*_values.json`, `acs_values.json`, and `manifest.json`, including the meaning of `percentiles[i]`, the `$1,000` rounding, and the ID formats (`place:49xxxxx`, `zcta5:84xxx`, `county:salt-lake`). People who want to reuse the data will look for this.
+**Status (2026-10-17):** items 2–7 are done. The README has How It Works (with a Mermaid diagram and the formula), Limitations, Updating the Data and an expanded Testing section. `docs/UPDATING.md` is the yearly runbook, the config files document their fields, `docs/DATA.md` is the output data dictionary, and CI runs pytest, the type check and a build. Items 1 (screenshots) and 8 (geodatabase download script) are still open.
+
 6. **Fix the README errors.**
    - ~~The FHFA HPI description~~ and ~~the `##` heading~~ are fixed (2026-10-16).
    - The test list omits `tests/test_housing_loader.py`.

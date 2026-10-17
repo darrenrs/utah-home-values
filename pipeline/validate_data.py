@@ -2,7 +2,8 @@ class DataValidationError(ValueError):
     pass
 
 
-REQUIRED_HOUSING_SOURCE_COLUMNS = {
+# Every kept record must have a value in these columns.
+REQUIRED_HOUSING_SOURCE_VALUE_COLUMNS = {
     "ACRES",
     "APX_BLT_YR",
     "COUNTY",
@@ -12,7 +13,9 @@ REQUIRED_HOUSING_SOURCE_COLUMNS = {
     "geometry",
 }
 
-REQUIRED_HOUSING_SOURCE_VALUE_COLUMNS = REQUIRED_HOUSING_SOURCE_COLUMNS
+# The filters also read building square footage, which may be missing for
+# individual records but must exist as a column.
+REQUIRED_HOUSING_SOURCE_COLUMNS = REQUIRED_HOUSING_SOURCE_VALUE_COLUMNS | {"TOT_BD_FT2"}
 
 
 def validate_housing_source_records(records, require_values=True):

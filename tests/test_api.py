@@ -53,11 +53,32 @@ def post_polygon(points, polygon=POLYGON):
 
 
 def test_health_accepts_get():
-    with TestClient(app) as client:
-        response = client.get("/api/health")
+    app.dependency_overrides[get_housing_points] = lambda: housing_points(1)
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/health")
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_startup_loads_housing_points_before_serving():
+    calls = []
+
+    def loader():
+        calls.append("load")
+        return housing_points(1)
+
+    app.dependency_overrides[get_housing_points] = loader
+
+    try:
+        with TestClient(app):
+            assert calls == ["load"]
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_polygon_summary_returns_summary_at_privacy_threshold():

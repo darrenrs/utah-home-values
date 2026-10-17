@@ -85,6 +85,13 @@ def test_allows_missing_is_oug_column():
     validate_housing_source_records(records)
 
 
+def test_allows_missing_building_sqft_values():
+    records = make_housing_source_records()
+    records["TOT_BD_FT2"] = None
+
+    validate_housing_source_records(records)
+
+
 def test_filter_valid_housing_units_allows_missing_is_oug_column():
     records = make_housing_source_records().drop(columns=["IS_OUG"])
     county_quality = {
@@ -258,7 +265,7 @@ def test_geography_assessed_value_years_requires_90_percent_share():
     assert years == {"a": 2024, "b": None}
 
 
-def test_build_market_context_reports_factors_and_metro_changes():
+def test_build_market_context_reports_assessed_years_and_metro_changes():
     county_quality = {
         "Davis": {
             "is_valid": True,
@@ -289,7 +296,6 @@ def test_build_market_context_reports_factors_and_metro_changes():
     assert context["metros"]["ogden"]["changePercent"] == 3.0
     assert context["counties"] == {
         "county:davis": {
-            "adjustmentFactor": 1.0791,
             "assessedValueYear": 2024,
             "metro": "ogden",
         },

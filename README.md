@@ -1,5 +1,7 @@
 # Utah Home Values Explorer
 
+[![CI](https://github.com/darrenrs/utah-home-values/actions/workflows/ci.yml/badge.svg)](https://github.com/darrenrs/utah-home-values/actions/workflows/ci.yml)
+
 A data pipeline and interactive website for exploring single-family home values and affordability metrics for counties, cities, and ZIP Code Tabulation Areas in Utah based on public data sources. Currently available live at https://darrenskidmore.com/projects/utah-home-values.
 
 ## Features
@@ -7,11 +9,38 @@ A data pipeline and interactive website for exploring single-family home values 
 - Fully deterministic data pipeline based on five official data sources
 - Responsive website design with data visualizations, with support for counties, cities/CDPs, ZIP Code Tabulation Areas, and the Wasatch Front
 - Rankings page for cities/CDPs, ZIP codes, and counties, allowing a target budget or percentile input for quick comparison, with CSV download
-- Choropleth map of median home values by city/CDP or ZIP code
-- Home-value calculator that converts a county assessed value into an estimated market value and percentile
+- Zoomable choropleth map of median home values by county, city/CDP, or ZIP code
+- Home value lookup that shows where a value ranks in the selected area, plus a CSV download of every percentile
 - Side-by-side comparison of two areas, with the parent county's distribution shown for context
 - Housing stock (year built and lot size) and affordability context for every area
 - Support for custom areas defined by GeoJSON polygons allowing deeper neighborhood/census tract analysis
+
+## How It Works
+
+```mermaid
+flowchart LR
+    HUI[Housing Unit Inventory<br/>parcel records] --> F[Filter to comparable<br/>single-family homes]
+    F --> M[Convert to<br/>market values]
+    M --> J[Spatial join to counties,<br/>places, and ZCTAs]
+    TIGER[Census TIGER/Line<br/>boundaries] --> J
+    J --> S[Percentile and<br/>housing stock summaries]
+    ACS[American Community<br/>Survey] --> JSON
+    S --> JSON[Static JSON files]
+    JSON --> SITE[React website]
+    M --> API[FastAPI polygon service]
+    API --> SITE
+```
+
+1. `pipeline/generate_data.py` reads the Housing Unit Inventory and keeps comparable single-family homes (see [the filters](#utah-housing-unit-inventory)).
+2. It converts each home's assessed value to an estimated market value:
+
+   ```
+   market value = assessed value / assessment_sales_ratio * hpi_ratio
+   ```
+
+   The assessment/sales ratio corrects for how far each county's assessments run from sale prices. The HPI ratio moves the value from the county's January 1 assessment date to the average prices of the market-value year (currently 2025). Both are set per county in `config/counties.yml`.
+3. It places each home in the Census county, place, and ZIP Code Tabulation Area containing it, and writes the 1st–99th percentiles, housing stock summaries, and simplified boundaries as static JSON. `pipeline/download_acs_tables.py` adds income and tenure estimates. The output format is documented in [docs/DATA.md](docs/DATA.md).
+4. The website loads those files in the browser. The optional FastAPI service summarizes custom polygons with the same filters and calculations.
 
 ## Setup
 
@@ -66,6 +95,8 @@ The Polygon API uses Uvicorn as a server to interface between the FastAPI applic
 
 18. `uvicorn api.app:app --reload`
 
+The API loads and filters the geodatabase before it starts accepting requests, which takes a while. `/api/health` responds once the API is ready.
+
 In development (`npm run dev`), the website uses `http://127.0.0.1:8000/api` by default. Production builds only enable custom areas when `VITE_FASTAPI_BASE_PATH` is set, such as `https://example.com/projects/utah-home-values/api`.
 
 #### Example Usage
@@ -84,7 +115,7 @@ The response contains assessed and market-adjusted summaries using the same filt
 
 ### Utah Housing Unit Inventory
 
-All parcel-level/value data are provided for public use by Utah Open Data as part of the [Utah Housing Unit Inventory](https://gis.utah.gov/products/sgid/planning/housing-unit-inventory/) dataset. Parcels which correspond to single- and multi-family housing units are aggregated by county assessors and submitted to the dataset. As of January 2026, the dataset currently includes the core Wasatch Front — Salt Lake, Utah, Davis, and Weber counties — along with Tooele, Morgan, and Washington counties.
+All parcel-level/value data are provided for public use by Utah Open Data as part of the [Utah Housing Unit Inventory](https://gis.utah.gov/products/sgid/planning/housing-unit-inventory/) dataset. Parcels which correspond to single- and multi-family housing units are aggregated by county assessors and submitted to the dataset. As of the October 14, 2026 update, the dataset includes the core Wasatch Front — Salt Lake, Utah, Davis, and Weber counties — along with Tooele, Morgan, and Washington counties.
 
 A [live service](https://opendata.gis.utah.gov/datasets/utah-housing-unit-inventory/about) is available on ArcGIS. This is where updated geodatabases will be available.
 
@@ -110,7 +141,7 @@ Places and ZIP Code Tabulation Areas can span counties with different assessment
 
 ### Utah Assessment/Sales Ratio Studies
 
-Assessment/Sales ratios are provided by the Utah State Tax Commission. The reference year depends on the year that the assessed value is associated with, which can be found in `config/counties.yml`. The most recent report, concerning fiscal year 2024, was published in 2025, and is available here: https://files.tax.utah.gov/propertytax/srs/srs2025.pdf.
+Assessment/Sales ratios are provided by the Utah State Tax Commission. Each county uses the Residential median from the study published the year after its `assessed_value_year` in `config/counties.yml`, because the study published in year Y+1 matches sales to the January 1, Y assessments. The current values come from the [2024](https://files.tax.utah.gov/propertytax/srs/srs2024.pdf) (Utah County) and [2025](https://files.tax.utah.gov/propertytax/srs/srs2025.pdf) (Davis, Morgan, Salt Lake, Tooele, and Weber) studies. Washington County's 2026 assessments use the [2026](https://files.tax.utah.gov/propertytax/srs/srs2026.pdf) study as a stand-in until the 2027 study is published.
 
 ### FHFA House Price Index
 
@@ -137,17 +168,40 @@ Place names and boundaries are provided by the U.S. Census Bureau from the [2024
 
 American Community Survey data from the 2020-2024 5-year estimates are provided by the U.S. Census Bureau via the [Census API](https://www.census.gov/data/developers.html). The tables used are [Median Household Income in the Past 12 Months (B19013)](https://data.census.gov/table?q=B19013) and [Tenure (B25003)](https://data.census.gov/table?q=B25003). This is used for reporting home affordability ratios.
 
+## Limitations
+
+- **Estimates for groups, not appraisals.** The values describe the distribution of homes in an area. They aren't an estimate for any one home.
+- **Single-family homes only.** Counties report townhomes and condos inconsistently, so they are excluded everywhere.
+- **County-wide adjustments.** Each county has one assessment/sales ratio and one price index. Neighborhoods or price tiers that the assessor values more or less accurately than the county median are adjusted the same way.
+- **Assessment timing.** Counties assess in different years. Assessed values are only comparable within a county; use market-adjusted values to compare across counties.
+- **New construction lags.** Homes built after each county's `latest_year_built_with_value` are left out until their values are complete.
+- **Square footage isn't used.** Some counties include basements in `TOT_BD_FT2` and others don't.
+- **Income is a few years older.** The ACS 5-year estimates (2020–2024, in 2024 dollars) are older than the home values, so price-to-income ratios run slightly high.
+- **ZIP Code Tabulation Areas aren't ZIP codes.** They approximate USPS ZIP code areas, and a few extend into counties the dataset doesn't cover, so only their covered homes are counted.
+
+## Updating the Data
+
+The sources update on different schedules: the Housing Unit Inventory a few times a year, the price index and ratio studies yearly, and the ACS each December. [docs/UPDATING.md](docs/UPDATING.md) lists the steps for each, including the config values to change in `config/counties.yml` and `config/market_context.yml`. Field descriptions are at the top of each config file.
+
 ## Testing
 
 There is a test suite that covers common scenarios and essential guardrails.
 
-- `tests/test_api.py` - Tests that API is up, returns valid data, and rejects invalid requests.
+- `tests/test_api.py` - Tests that the API loads its data at startup, returns valid data, and rejects invalid requests.
 - `tests/test_polygon_summary.py` - Tests some valid and invalid GeoJSON polygons.
-- `tests/test_validate_data.py` - Tests that empty output and required columns are rejected, that non-required columns are not rejected, that failed updates or record count drops of more than 1% do not overwrite existing knowing good data.
+- `tests/test_validate_data.py` - Tests the home filters, the missing-square-footage cohort rule, the small-area and assessed-year rules, the market context and housing stock summaries, that empty output and missing required columns are rejected, and that failed updates or record count drops of more than 1% do not overwrite existing known good data.
+- `tests/test_housing_loader.py` - Tests that broken source geometries are repaired or rejected when the geodatabase is loaded.
+- `tests/test_acs_tables.py` - Tests that unavailable Census values become `null` without dropping the rest of the row.
 
 ### Running Tests
 
-Please run the test suite whenever contributing or updating the source data. To run tests install `pytest` through `pip` and run `python3 -m pytest` at the project root directory.
+Please run the test suite whenever contributing or updating the source data. From the project root directory:
+
+1. `pip install -r requirements-dev.txt`
+2. `python3 -m pytest`
+3. `cd website && npm run typecheck`
+
+GitHub Actions runs the tests, the type check, and a production build on every push to `main` and on every pull request.
 
 ## Copyright
 

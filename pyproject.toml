@@ -5,3 +5,15 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.pyright]
+include = ["pipeline", "api", "tests"]
+venvPath = "."
+venv = ".venv"
+# The pandas and geopandas stubs type most indexing and method results as broad
+# unions (Series | DataFrame | scalar), which flags nearly every call that
+# passes one on. These rules are off so the remaining errors are real ones.
+reportArgumentType = "none"
+reportAttributeAccessIssue = "none"
+reportCallIssue = "none"
+reportOptionalMemberAccess = "none"

@@ -6,7 +6,11 @@ A data pipeline and interactive website for exploring single-family home values 
 
 - Fully deterministic data pipeline based on five official data sources
 - Responsive website design with data visualizations, with support for counties, cities/CDPs, ZIP Code Tabulation Areas, and the Wasatch Front
-- Rankings page including all cities/CDPs, allowing a target budget or percentile input for quick comparison
+- Rankings page for cities/CDPs, ZIP codes, and counties, allowing a target budget or percentile input for quick comparison, with CSV download
+- Choropleth map of median home values by city/CDP or ZIP code
+- Home-value calculator that converts a county assessed value into an estimated market value and percentile
+- Side-by-side comparison of two areas, with the parent county's distribution shown for context
+- Housing stock (year built and lot size) and affordability context for every area
 - Support for custom areas defined by GeoJSON polygons allowing deeper neighborhood/census tract analysis
 
 ## Setup
@@ -119,7 +123,7 @@ hpi_ratio = [county_annual(2025) / county_annual(Y)] * [metro_avg(Y) / metro_jan
 metro_jan1(Y) = mean(metro Q4 of Y-1, metro Q1 of Y)
 ```
 
-Here `Y` is the county's `assessed_value_year`. The source series and values for each county are recorded as comments in `config/counties.yml`. Washington County's assessed values (2026) are newer than the latest county annual index, so its ratio uses the St. George metro quarterly index only.
+Here `Y` is the county's `assessed_value_year`. `config/market_context.yml` sets the year the market-adjusted values represent and holds the latest metro quarterly index values, which the website uses for a "prices since" note. That note never changes published values. The source series and values for each county are recorded as comments in `config/counties.yml`. Washington County's assessed values (2026) are newer than the latest county annual index, so its ratio uses the St. George metro quarterly index only.
 
 ### Census TIGER/Line Shapefiles
 

@@ -4,6 +4,7 @@ from pathlib import Path
 SHAPEFILES = [
     "https://www2.census.gov/geo/tiger/TIGER2024/PLACE/tl_2024_49_place.zip",
     "https://www2.census.gov/geo/tiger/TIGER2024/ZCTA520/tl_2024_us_zcta520.zip",
+    "https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_county_500k.zip",
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

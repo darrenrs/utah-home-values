@@ -6,6 +6,7 @@ import pyogrio
 import re
 import tempfile
 import yaml
+from typing import NamedTuple
 from datetime import datetime, timezone
 from pathlib import Path
 from shapely.errors import GEOSException
@@ -33,6 +34,9 @@ COUNTY_QUALITY_PATH = CONFIG_DIR / "counties.yml"
 MARKET_CONTEXT_PATH = CONFIG_DIR / "market_context.yml"
 SHAPEFILE_PLACE_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_49_place.zip"
 SHAPEFILE_ZCTA5_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_us_zcta520.zip"
+# Cartographic boundary file: clipped to the shoreline and lighter than TIGER/Line.
+SHAPEFILE_COUNTY_ZIP_PATH = SHAPEFILES_DIR / "cb_2024_us_county_500k.zip"
+UTAH_STATE_FIPS = "49"
 
 WASATCH_FRONT_ID = "region:wasatch-front"
 SCHEMA_VERSION = 1
@@ -42,6 +46,8 @@ DATASET_FILENAMES = {
     "huiAssessedValues": "hui_assessed_values.json",
     "acsValues": "acs_values.json",
     "marketContext": "market_context.json",
+    "housingStock": "housing_stock.json",
+    "boundaries": "boundaries.json",
 }
 
 MAX_POLYGON_VERTICES = 10_000
@@ -53,6 +59,28 @@ MIN_PUBLISHED_GEOGRAPHY_RECORD_COUNT = 20
 MIN_RECORDED_BUILDING_SQFT = 100
 MISSING_SQFT_MIN_COHORT_VALUE_SHARE = 0.5
 MIN_CITY_COHORT_SIZE = 10
+# Bands are (label, lower bound inclusive, upper bound exclusive); None is open.
+YEAR_BUILT_BANDS = [
+    ("Before 1945", None, 1945),
+    ("1945–1969", 1945, 1970),
+    ("1970–1989", 1970, 1990),
+    ("1990–1999", 1990, 2000),
+    ("2000–2009", 2000, 2010),
+    ("2010–2019", 2010, 2020),
+    ("2020 or later", 2020, None),
+]
+LOT_SIZE_BANDS = [
+    ("Under 0.15 ac", None, 0.15),
+    ("0.15–0.2 ac", 0.15, 0.2),
+    ("0.2–0.3 ac", 0.2, 0.3),
+    ("0.3–0.5 ac", 0.3, 0.5),
+    ("0.5–1 ac", 0.5, 1.0),
+    ("1–3 ac", 1.0, 3.0),
+    ("3 ac or more", 3.0, None),
+]
+# About 150 m; enough detail for a city-scale choropleth at a fraction of the size.
+BOUNDARY_SIMPLIFY_TOLERANCE_DEGREES = 0.0015
+BOUNDARY_COORDINATE_DECIMALS = 4
 
 
 def slugify(value: str):
@@ -80,11 +108,95 @@ def geography_assessed_value_years(matched: pd.DataFrame, id_col: str):
     }
 
 
+class JoinedGeographies(NamedTuple):
+    raw_stats: pd.DataFrame
+    adjusted_stats: pd.DataFrame
+    housing_stock: dict
+    boundaries: list
+
+
+# Year-built mix and lot sizes for a group of homes. Square footage is left out
+# on purpose: counties disagree on whether it includes basements.
+def band_shares(values: pd.Series, bands):
+    shares = []
+    for _, lower, upper in bands:
+        in_band = pd.Series(True, index=values.index)
+        if lower is not None:
+            in_band &= values >= lower
+        if upper is not None:
+            in_band &= values < upper
+        shares.append(round(float(in_band.mean()), 3))
+
+    return shares
+
+
+# Year-built mix and lot sizes for a group of homes. Square footage is left out
+# on purpose: counties disagree on whether it includes basements.
+def summarize_housing_stock(df: pd.DataFrame):
+    years = df["APX_BLT_YR"]
+    acres = df["ACRES"]
+
+    return {
+        "n": len(df),
+        "medianYearBuilt": int(round(years.median())),
+        "yearBuiltP25": int(round(years.quantile(0.25))),
+        "yearBuiltP75": int(round(years.quantile(0.75))),
+        "yearBuiltShares": band_shares(years, YEAR_BUILT_BANDS),
+        "medianLotAcres": round(float(acres.median()), 3),
+        "lotAcresP25": round(float(acres.quantile(0.25)), 3),
+        "lotAcresP75": round(float(acres.quantile(0.75)), 3),
+        "lotSizeShares": band_shares(acres, LOT_SIZE_BANDS),
+    }
+
+
+def load_county_boundaries(county_names):
+    counties = gpd.read_file(
+        f"zip://{SHAPEFILE_COUNTY_ZIP_PATH}", columns=["STATEFP", "NAME", "geometry"]
+    )
+    counties = counties[
+        (counties["STATEFP"] == UTAH_STATE_FIPS) & counties["NAME"].isin(county_names)
+    ]
+    return simplified_boundary_features(counties, "NAME", "county")
+
+
+def round_coordinates(coordinates, decimals=BOUNDARY_COORDINATE_DECIMALS):
+    if isinstance(coordinates[0], (int, float)):
+        return [round(value, decimals) for value in coordinates]
+
+    return [round_coordinates(part, decimals) for part in coordinates]
+
+
+def simplified_boundary_features(shapes: gpd.GeoDataFrame, id_col: str, namespace: str):
+    shapes = shapes.to_crs("EPSG:4326")
+    features = []
+    for row in shapes.itertuples():
+        geometry = getattr(row, "geometry").simplify(
+            BOUNDARY_SIMPLIFY_TOLERANCE_DEGREES, preserve_topology=True
+        )
+        if geometry.is_empty:
+            continue
+
+        geojson = geometry.__geo_interface__
+        features.append(
+            {
+                "type": "Feature",
+                "properties": {"id": geography_id(namespace, getattr(row, id_col))},
+                "geometry": {
+                    "type": geojson["type"],
+                    "coordinates": round_coordinates(geojson["coordinates"]),
+                },
+            }
+        )
+
+    return features
+
+
 def join_shapefile(
     hui_valid: gpd.GeoDataFrame,
     path: Path,
     column_mappings: dict[str, str],
     id_col: str,
+    namespace: str,
 ):
     group_cols = list(column_mappings.values())
     shapes = gpd.read_file(
@@ -127,7 +239,20 @@ def join_shapefile(
         stats["PRIMARY_COUNTY"] = stats[id_col].map(primary_counties)
         stats["ASSESSED_VALUE_YEAR"] = stats[id_col].map(assessed_value_years)
 
-    return drop_small_geographies(raw_stats), drop_small_geographies(adjusted_stats)
+    raw_stats = drop_small_geographies(raw_stats)
+    adjusted_stats = drop_small_geographies(adjusted_stats)
+    published_ids = set(raw_stats[id_col])
+
+    housing_stock = {
+        geography_id(namespace, geography): summarize_housing_stock(group)
+        for geography, group in matched.groupby(id_col)
+        if geography in published_ids
+    }
+    boundaries = simplified_boundary_features(
+        shapes[shapes[id_col].isin(published_ids)], id_col, namespace
+    )
+
+    return JoinedGeographies(raw_stats, adjusted_stats, housing_stock, boundaries)
 
 
 def load_county_quality():
@@ -677,18 +802,30 @@ def main():
         "NAMELSAD": "PLACE_NAMELSAD",
     }
 
-    place_raw_stats, place_adjusted_stats = join_shapefile(
-        hui_valid, SHAPEFILE_PLACE_ZIP_PATH, column_mappings_place, "PLACE_GEOID"
+    places = join_shapefile(
+        hui_valid, SHAPEFILE_PLACE_ZIP_PATH, column_mappings_place, "PLACE_GEOID", "place"
     )
+    place_raw_stats, place_adjusted_stats = places.raw_stats, places.adjusted_stats
 
     column_mappings_zcta5 = {
         "ZCTA5CE20": "ZCTA5_GEOID",
         "GEOID20": "ZCTA5_NAMELSAD",
     }
 
-    zcta5_raw_stats, zcta5_adjusted_stats = join_shapefile(
-        hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID"
+    zcta5s = join_shapefile(
+        hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID", "zcta5"
     )
+    zcta5_raw_stats, zcta5_adjusted_stats = zcta5s.raw_stats, zcta5s.adjusted_stats
+
+    housing_stock = {
+        WASATCH_FRONT_ID: summarize_housing_stock(hui_wasatch_front),
+        **{
+            geography_id("county", county): summarize_housing_stock(group)
+            for county, group in hui_valid.groupby("COUNTY")
+        },
+        **places.housing_stock,
+        **zcta5s.housing_stock,
+    }
 
     geography_catalog = build_geography_catalog(
         county_raw_stats,
@@ -718,6 +855,19 @@ def main():
             DATASET_FILENAMES["marketContext"]: build_market_context(
                 county_quality, load_market_context_config()
             ),
+            DATASET_FILENAMES["housingStock"]: {
+                "yearBuiltBands": [label for label, _, _ in YEAR_BUILT_BANDS],
+                "lotSizeBands": [label for label, _, _ in LOT_SIZE_BANDS],
+                "geographies": housing_stock,
+            },
+            DATASET_FILENAMES["boundaries"]: {
+                "type": "FeatureCollection",
+                "features": [
+                    *load_county_boundaries(set(hui_valid["COUNTY"])),
+                    *places.boundaries,
+                    *zcta5s.boundaries,
+                ],
+            },
             DATASET_FILENAMES["huiAssessedValues"]: assessed_values,
             DATASET_FILENAMES["huiMarketAdjustedValues"]: market_adjusted_values,
             "manifest.json": build_manifest(),

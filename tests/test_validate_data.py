@@ -6,6 +6,8 @@ from shapely.geometry import Point
 from pipeline.generate_data import (
     DATASET_FILENAMES,
     build_market_context,
+    round_coordinates,
+    summarize_housing_stock,
     drop_small_geographies,
     filter_valid_housing_units,
     geography_assessed_value_years,
@@ -292,6 +294,29 @@ def test_build_market_context_reports_factors_and_metro_changes():
             "metro": "ogden",
         },
     }
+
+
+def test_summarize_housing_stock_reports_year_built_mix_and_lot_sizes():
+    homes = pd.DataFrame({
+        "APX_BLT_YR": [1940, 1950, 1980, 1995, 2005, 2015, 2020, 2023],
+        "ACRES": [0.10, 0.20, 0.30, 0.50, 1.00, 3.00, 10.00, 12.00],
+    })
+
+    stock = summarize_housing_stock(homes)
+
+    assert stock["n"] == 8
+    assert stock["medianYearBuilt"] == 2000
+    assert stock["yearBuiltP25"] == 1972
+    assert stock["yearBuiltP75"] == 2016
+    assert stock["yearBuiltShares"] == [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.25]
+    assert stock["lotSizeShares"] == [0.125, 0, 0.125, 0.125, 0.125, 0.125, 0.375]
+    assert stock["medianLotAcres"] == 0.75
+
+
+def test_round_coordinates_handles_nested_rings():
+    rings = [[[-111.912345, 40.712345], [-111.9, 40.7]]]
+
+    assert round_coordinates(rings) == [[[-111.9123, 40.7123], [-111.9, 40.7]]]
 
 
 def test_rejects_missing_required_housing_source_value():

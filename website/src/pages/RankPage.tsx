@@ -8,6 +8,8 @@ import {
   type DataSection,
   type ValueStats,
 } from "../data/loadData";
+import DownloadButton from "../components/DownloadButton";
+import { downloadCsv } from "../lib/csv";
 import { formatCurrency, formatNumber } from "../lib/format";
 import {
   estimatePercentile,
@@ -104,26 +106,6 @@ function normalizePercentileBars(rows: RankingRow[]) {
         : ((row.sortValue - minimumValue) / (maximumValue - minimumValue)) *
           100,
   }));
-}
-
-function csvCell(value: string | number) {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
-  // The byte order mark tells Excel the file is UTF-8; without it Excel reads
-  // characters such as "≥" as Windows-1252.
-  const csv =
-    "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\n");
-  const url = URL.createObjectURL(
-    new Blob([csv], { type: "text/csv;charset=utf-8" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function DataStatus({ errorMessage }: { errorMessage?: string }) {
@@ -368,13 +350,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
               <h2>{levelInfo.heading} Rankings</h2>
               <div className="ranking-table-tools">
                 <p className="ranking-filter">n ≥ {MIN_SAMPLE_SIZE}</p>
-                <button
-                  type="button"
-                  className="ranking-download"
-                  onClick={handleDownload}
-                >
-                  Download CSV
-                </button>
+                <DownloadButton label="Download CSV" onClick={handleDownload} />
               </div>
             </div>
 

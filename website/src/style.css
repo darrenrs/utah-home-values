@@ -18,6 +18,14 @@
   --radius-card: 14px;
   --radius-inner: 10px;
   --popover-shadow: 0 12px 32px rgb(21 25 35 / 0.12);
+  /* Sequential blues for the map and the year-built bar, light to dark. */
+  --seq-1: #dbeafe;
+  --seq-2: #bfdbfe;
+  --seq-3: #93c5fd;
+  --seq-4: #60a5fa;
+  --seq-5: #3b82f6;
+  --seq-6: #2563eb;
+  --seq-7: #1e40af;
 }
 
 *,
@@ -830,6 +838,169 @@ canvas:focus-visible {
   padding: 0.4rem 0.9rem;
 }
 
+.map-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.map-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.map-heading h2 {
+  font-size: 1.4rem;
+}
+
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.map-segmented {
+  min-width: 300px;
+}
+
+.map-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inner);
+  background: var(--surface-soft);
+}
+
+.map-svg {
+  display: block;
+  width: 100%;
+  height: clamp(320px, 60vh, 560px);
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.map-svg:active {
+  cursor: grabbing;
+}
+
+.map-level-segmented {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.map-zoom {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.map-zoom button {
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.map-zoom button:last-child {
+  border-bottom: 0;
+}
+
+.map-zoom button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.map-background {
+  fill: var(--surface);
+  stroke: var(--muted);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Strokes stay the same width on screen at any zoom level. */
+.map-area {
+  stroke: var(--surface);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+
+.map-area.is-hovered {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.map-area.is-selected {
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+
+.map-readout {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 10rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-inner);
+  background: color-mix(in srgb, var(--surface), transparent 6%);
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  pointer-events: none;
+}
+
+.map-readout strong {
+  color: var(--text);
+  font-family: var(--font-header);
+  font-size: 0.95rem;
+}
+
+.map-readout-value {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.map-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.map-legend-swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 3px;
+}
+
 .lookup-panel {
   display: grid;
   gap: 1rem;
@@ -898,6 +1069,61 @@ canvas:focus-visible {
   cursor: default;
 }
 
+.stock-bar-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.stock-bar-card h4 {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.stock-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stock-bar {
+  display: flex;
+  height: 0.9rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.stock-bar-segment {
+  flex: var(--share) 0 0;
+  min-width: 0;
+}
+
+.stock-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.stock-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.stock-legend-share {
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.stock-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+}
+
 .explorer-note,
 .context-unavailable,
 .subheader-description {
@@ -955,7 +1181,12 @@ canvas:focus-visible {
   gap: 0.75rem;
 }
 
-.ranking-download {
+.download-button,
+.map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
@@ -964,8 +1195,14 @@ canvas:focus-visible {
   padding: 0.35rem 0.85rem;
 }
 
-.ranking-download:hover {
+.download-button:hover,
+.map-toggle:hover {
   border-color: var(--accent);
+}
+
+.download-button svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .ranking-county {
@@ -1410,6 +1647,14 @@ canvas:focus-visible {
     --accent-strong: #60a5fa;
     --accent-soft: color-mix(in srgb, var(--accent), var(--surface) 82%);
     --popover-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
+    /* Dark mode reverses the ramp so higher values are brighter. */
+    --seq-1: #1e3a5f;
+    --seq-2: #1e40af;
+    --seq-3: #1d4ed8;
+    --seq-4: #2563eb;
+    --seq-5: #3b82f6;
+    --seq-6: #60a5fa;
+    --seq-7: #93c5fd;
   }
 
   .information-card--warning {
@@ -1511,6 +1756,16 @@ canvas:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .map-segmented {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .map-readout {
+    position: static;
+    margin: 0.5rem;
+  }
+
   .lookup-field {
     flex: 1 1 100%;
   }

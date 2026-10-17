@@ -55,6 +55,37 @@ export type MarketContext = {
   >;
 };
 
+export type HousingStockValues = {
+  n: number;
+  medianYearBuilt: number;
+  yearBuiltP25: number;
+  yearBuiltP75: number;
+  yearBuiltShares: number[];
+  medianLotAcres: number;
+  lotAcresP25: number;
+  lotAcresP75: number;
+  lotSizeShares: number[];
+};
+
+export type HousingStock = {
+  yearBuiltBands: string[];
+  lotSizeBands: string[];
+  geographies: Record<string, HousingStockValues>;
+};
+
+export type BoundaryFeature = {
+  type: "Feature";
+  properties: { id: string };
+  geometry:
+    | { type: "Polygon"; coordinates: number[][][] }
+    | { type: "MultiPolygon"; coordinates: number[][][][] };
+};
+
+export type Boundaries = {
+  type: "FeatureCollection";
+  features: BoundaryFeature[];
+};
+
 type DataManifest = {
   schemaVersion: number;
   generatedAt: string;
@@ -64,6 +95,8 @@ type DataManifest = {
     huiAssessedValues: string;
     acsValues: string;
     marketContext?: string;
+    housingStock?: string;
+    boundaries?: string;
   };
 };
 
@@ -73,6 +106,9 @@ export type DataBundle = {
   acsValues: AcsValues;
   // Missing when the data predates market context; features that need it hide.
   marketContext?: MarketContext;
+  housingStock?: HousingStock;
+  // Boundaries are large, so the map fetches them on demand.
+  boundariesUrl?: string;
 };
 
 let dataPromise: Promise<DataBundle> | undefined;
@@ -124,29 +160,38 @@ async function fetchData(): Promise<DataBundle> {
   assertSupportedManifest(manifest);
 
   const marketContextPath = manifest.datasets.marketContext;
-  const [geographies, market, assessed, acsValues, marketContext] =
-    await Promise.all([
-      fetchJson<GeographyCatalog>(
-        resolveDatasetUrl(manifestUrl, manifest.datasets.geographies),
-      ),
-      fetchJson<AttributeData>(
-        resolveDatasetUrl(
-          manifestUrl,
-          manifest.datasets.huiMarketAdjustedValues,
-        ),
-      ),
-      fetchJson<AttributeData>(
-        resolveDatasetUrl(manifestUrl, manifest.datasets.huiAssessedValues),
-      ),
-      fetchJson<AcsValues>(
-        resolveDatasetUrl(manifestUrl, manifest.datasets.acsValues),
-      ),
-      marketContextPath
-        ? fetchJson<MarketContext>(
-            resolveDatasetUrl(manifestUrl, marketContextPath),
-          )
-        : Promise.resolve(undefined),
-    ]);
+  const housingStockPath = manifest.datasets.housingStock;
+  const [
+    geographies,
+    market,
+    assessed,
+    acsValues,
+    marketContext,
+    housingStock,
+  ] = await Promise.all([
+    fetchJson<GeographyCatalog>(
+      resolveDatasetUrl(manifestUrl, manifest.datasets.geographies),
+    ),
+    fetchJson<AttributeData>(
+      resolveDatasetUrl(manifestUrl, manifest.datasets.huiMarketAdjustedValues),
+    ),
+    fetchJson<AttributeData>(
+      resolveDatasetUrl(manifestUrl, manifest.datasets.huiAssessedValues),
+    ),
+    fetchJson<AcsValues>(
+      resolveDatasetUrl(manifestUrl, manifest.datasets.acsValues),
+    ),
+    marketContextPath
+      ? fetchJson<MarketContext>(
+          resolveDatasetUrl(manifestUrl, marketContextPath),
+        )
+      : Promise.resolve(undefined),
+    housingStockPath
+      ? fetchJson<HousingStock>(
+          resolveDatasetUrl(manifestUrl, housingStockPath),
+        )
+      : Promise.resolve(undefined),
+  ]);
 
   return {
     geographies,
@@ -156,7 +201,17 @@ async function fetchData(): Promise<DataBundle> {
     },
     acsValues,
     marketContext,
+    housingStock,
+    boundariesUrl: manifest.datasets.boundaries
+      ? resolveDatasetUrl(manifestUrl, manifest.datasets.boundaries)
+      : undefined,
   };
+}
+
+let boundariesPromise: Promise<Boundaries> | undefined;
+
+export function loadBoundaries(url: string) {
+  return (boundariesPromise ??= fetchJson<Boundaries>(url));
 }
 
 export function loadData() {

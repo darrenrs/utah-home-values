@@ -15,13 +15,17 @@ import type {
   ValueStats,
 } from "../data/loadData";
 import { isApiConfigured, withApiBaseUrl } from "../lib/apiUrl";
+import { downloadCsv, fileSlug } from "../lib/csv";
 import { formatCurrency, formatNumber } from "../lib/format";
 import GeographySelector, {
   type GeographyOption,
   type GeographyType,
 } from "./GeographySelector";
+import ChoroplethMap from "./ChoroplethMap";
+import DownloadButton from "./DownloadButton";
 import HomeValueLookup from "./HomeValueLookup";
 import HousingContext from "./HousingContext";
+import HousingStock from "./HousingStock";
 
 ChartJS.register(...registerables);
 ChartJS.defaults.font.family = "'Spline Sans Mono Variable', monospace";
@@ -354,7 +358,13 @@ function getRootCssValue(name: string, fallback: string) {
   return value || fallback;
 }
 
-function PercentileChart({ series }: { series: ChartSeries[] }) {
+function PercentileChart({
+  series,
+  onDownload,
+}: {
+  series: ChartSeries[];
+  onDownload: () => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartJS<
     "line",
@@ -559,6 +569,7 @@ function PercentileChart({ series }: { series: ChartSeries[] }) {
             See the value distribution from the 1st to 99th percentiles.
           </p>
         </div>
+        <DownloadButton label="Download CSV" onClick={onDownload} />
       </div>
       <div className="percentile-chart-frame">
         <canvas
@@ -625,7 +636,8 @@ function SampleSizeNotice({ level }: { level: "warning" | "error" }) {
 }
 
 function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
-  const { acsValues, datasets, geographies, marketContext } = dataBundle;
+  const { acsValues, datasets, geographies, housingStock, marketContext } =
+    dataBundle;
   const marketValueYear = marketContext?.marketValueYear ?? null;
   const hashGeographyId = getHashGeographyId(geographies);
   const [geoType, setGeoType] = useState<GeographyType>(() =>
@@ -850,6 +862,42 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
     }
   };
 
+  // Both value types for the selected area. Assessed values are left blank
+  // when the area mixes assessment years, as in the explorer.
+  const handleDownloadPercentiles = () => {
+    const section = sectionForGeoType(geoType);
+    const marketStats = customAreaSummary
+      ? customAreaSummary.marketAdjusted
+      : datasets.market[section][activeSelectedId];
+    const assessedStats =
+      assessedValueYear === null
+        ? undefined
+        : customAreaSummary
+          ? customAreaSummary.assessed
+          : datasets.assessed[section][activeSelectedId];
+
+    if (!marketStats) {
+      return;
+    }
+
+    downloadCsv(`utah-home-values-percentiles-${fileSlug(selectedLabel)}.csv`, [
+      [
+        "percentile_rank",
+        marketValueYear
+          ? `market_adjusted_value_${marketValueYear}`
+          : "market_adjusted_value",
+        assessedValueYear !== null
+          ? `assessed_value_${assessedValueYear}`
+          : "assessed_value",
+      ],
+      ...marketStats.percentiles.map((value, index) => [
+        index + 1,
+        Math.round(value),
+        assessedStats ? Math.round(assessedStats.percentiles[index]) : "",
+      ]),
+    ]);
+  };
+
   const handleAnalyzeCustomArea = async () => {
     setCustomAreaError(undefined);
     setIsAnalyzingCustomArea(true);
@@ -982,6 +1030,12 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
           </div>
         )}
       </div>
+
+      <ChoroplethMap
+        dataBundle={dataBundle}
+        selectedId={activeSelectedId}
+        geoType={geoType}
+      />
 
       {selected && (
         <article className="summary-panel">
@@ -1141,11 +1195,21 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                         }
                       />
                     )}
+
+                  {!customAreaSummary && housingStock && (
+                    <HousingStock
+                      id={activeSelectedId}
+                      housingStock={housingStock}
+                    />
+                  )}
                 </div>
 
                 {sampleSizeLevel !== "warning" && (
                   <div className="summary-side">
-                    <PercentileChart series={chartSeries} />
+                    <PercentileChart
+                      series={chartSeries}
+                      onDownload={handleDownloadPercentiles}
+                    />
                   </div>
                 )}
               </div>

@@ -16,3 +16,6 @@ website/dist/
 # fs
 .DS_Store
 Thumbs.db
+
+# Claude desktop app (local preview config)
+.claude/

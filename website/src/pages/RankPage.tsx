@@ -2,21 +2,39 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { loadData, type DataBundle, type ValueStats } from "../data/loadData";
+import {
+  loadData,
+  type DataBundle,
+  type DataSection,
+  type ValueStats,
+} from "../data/loadData";
 import { formatCurrency, formatNumber } from "../lib/format";
+import {
+  estimatePercentile,
+  formatPercentileRank,
+  MAX_PERCENTILE,
+  MIN_PERCENTILE,
+  type PercentileEstimate,
+} from "../lib/percentiles";
 import PageTitle from "../components/PageTitle";
 
 const MIN_SAMPLE_SIZE = 100;
 const MIN_HOME_VALUE = 200_000;
 const MAX_HOME_VALUE = 5_000_000;
-const MIN_PERCENTILE = 1;
-const MAX_PERCENTILE = 99;
 
 type QueryMode = "homeValue" | "percentile";
+type RankLevel = Extract<DataSection, "Place" | "ZCTA5" | "County">;
+
+const RANK_LEVELS = [
+  { id: "Place", label: "Cities / CDPs", heading: "City and CDP" },
+  { id: "ZCTA5", label: "ZIP Codes", heading: "ZIP Code" },
+  { id: "County", label: "Counties", heading: "County" },
+] satisfies Array<{ id: RankLevel; label: string; heading: string }>;
 
 type RankingRow = {
   id: string;
   name: string;
+  county: string;
   n: number;
   rank: number;
   barLabel: string;
@@ -24,60 +42,8 @@ type RankingRow = {
   sortValue: number;
 };
 
-type PercentileEstimate = {
-  percentile: number;
-  bound?: "below" | "above";
-};
-
 function getHomeValue(percentiles: number[], percentile: number) {
   return percentiles[percentile - 1];
-}
-
-// Interpolates linearly between the published 1st-99th percentile values, so
-// places rarely tie on whole percentiles. Values outside that range get a
-// position just below 1 or above 99 so they still sort without ties.
-function estimatePercentile(
-  percentiles: number[],
-  homeValue: number,
-): PercentileEstimate {
-  if (homeValue < percentiles[0]) {
-    return { percentile: homeValue / percentiles[0], bound: "below" };
-  }
-
-  const lastIndex = percentiles.length - 1;
-  if (homeValue >= percentiles[lastIndex]) {
-    return {
-      percentile: MAX_PERCENTILE + (1 - percentiles[lastIndex] / homeValue),
-      bound: "above",
-    };
-  }
-
-  for (let index = lastIndex - 1; index >= 0; index -= 1) {
-    const lower = percentiles[index];
-    const upper = percentiles[index + 1];
-
-    if (homeValue >= lower) {
-      const fraction =
-        upper > lower ? (homeValue - lower) / (upper - lower) : 0;
-      return { percentile: index + 1 + fraction };
-    }
-  }
-
-  return { percentile: MIN_PERCENTILE };
-}
-
-function formatPercentileRank({ percentile, bound }: PercentileEstimate) {
-  if (bound === "below") {
-    return "<1%";
-  }
-
-  if (bound === "above") {
-    return "≥99%";
-  }
-
-  // Interpolation is typically within half a percentile point of the exact
-  // rank, so one decimal would overstate the precision.
-  return `${Math.min(MAX_PERCENTILE, Math.max(MIN_PERCENTILE, Math.round(percentile)))}%`;
 }
 
 function getPercentileRankSortValue({ percentile }: PercentileEstimate) {
@@ -96,6 +62,7 @@ function makeHomeValueRow(
   return {
     id,
     name,
+    county: "",
     n: stats.n,
     rank: 0,
     barLabel: formatPercentileRank(estimate),
@@ -115,6 +82,7 @@ function makePercentileRow(
   return {
     id,
     name,
+    county: "",
     n: stats.n,
     rank: 0,
     barLabel: formatCurrency(homeValue),
@@ -136,6 +104,26 @@ function normalizePercentileBars(rows: RankingRow[]) {
         : ((row.sortValue - minimumValue) / (maximumValue - minimumValue)) *
           100,
   }));
+}
+
+function csvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
+  // The byte order mark tells Excel the file is UTF-8; without it Excel reads
+  // characters such as "≥" as Windows-1252.
+  const csv =
+    "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\n");
+  const url = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function DataStatus({ errorMessage }: { errorMessage?: string }) {
@@ -171,6 +159,7 @@ function RankingBar({ row }: { row: RankingRow }) {
 
 function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
   const [queryMode, setQueryMode] = useState<QueryMode>("homeValue");
+  const [level, setLevel] = useState<RankLevel>("Place");
   const [homeValue, setHomeValue] = useState("500000");
   const [percentile, setPercentile] = useState("50");
   const valueMode = "market";
@@ -193,16 +182,22 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
       return [];
     }
 
-    const placeStats = dataBundle.datasets[valueMode].Place;
+    const levelStats = dataBundle.datasets[valueMode][level];
 
-    const sortedRows = Object.entries(placeStats)
+    const sortedRows = Object.entries(levelStats)
       .filter(([, stats]) => stats.n >= MIN_SAMPLE_SIZE)
       .map(([id, stats]) => {
-        const name = dataBundle.geographies[id]?.name ?? id;
+        const metadata = dataBundle.geographies[id];
+        const name = metadata?.name ?? id;
+        const parent = metadata?.parentGeography
+          ? dataBundle.geographies[metadata.parentGeography]
+          : undefined;
+        const row =
+          queryMode === "homeValue"
+            ? makeHomeValueRow(id, name, stats, numericHomeValue)
+            : makePercentileRow(id, name, stats, numericPercentile);
 
-        return queryMode === "homeValue"
-          ? makeHomeValueRow(id, name, stats, numericHomeValue)
-          : makePercentileRow(id, name, stats, numericPercentile);
+        return { ...row, county: parent?.type === "County" ? parent.name : "" };
       })
       .sort(
         (a, b) =>
@@ -227,12 +222,28 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
     });
   }, [
     dataBundle,
+    level,
     numericHomeValue,
     numericPercentile,
     queryIsValid,
     queryMode,
     valueMode,
   ]);
+
+  const levelInfo = RANK_LEVELS.find((item) => item.id === level)!;
+  const handleDownload = () => {
+    downloadCsv(`utah-home-values-${level.toLowerCase()}-rankings.csv`, [
+      ["Rank", "Name", "County", "Geography ID", "Homes", barHeading],
+      ...rows.map((row) => [
+        row.rank,
+        row.name,
+        row.county,
+        row.id,
+        row.n,
+        queryMode === "percentile" ? row.sortValue : row.barLabel,
+      ]),
+    ]);
+  };
 
   const barHeading =
     queryMode === "homeValue"
@@ -241,16 +252,37 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
 
   return (
     <>
-      <PageTitle title="City Rankings | Utah Home Values Explorer" />
+      <PageTitle title="Rankings | Utah Home Values Explorer" />
       <section className="rankings-shell">
         <div className="rankings-intro">
           <p className="eyebrow">Utah Home Values</p>
-          <h1>City Rankings</h1>
-          <p>Compare cities and communities by percentile ranks.</p>
+          <h1>Rankings</h1>
+          <p>Compare cities, ZIP codes, and counties by home values.</p>
         </div>
 
         <article className="ranking-controls" aria-label="Ranking controls">
           <div className="ranking-control-grid">
+            <div className="control-group">
+              <span className="control-label">Geography</span>
+              <div
+                className="segmented ranking-level-segmented"
+                role="group"
+                aria-label="Geography level"
+              >
+                {RANK_LEVELS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={level === item.id ? "active" : ""}
+                    aria-pressed={level === item.id}
+                    onClick={() => setLevel(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="control-group">
               <span className="control-label">Rank By</span>
               <div className="segmented" role="group" aria-label="Ranking mode">
@@ -320,10 +352,10 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
           >
             {queryMode === "homeValue"
               ? homeValueIsValid
-                ? "Shows where a home at this value would fall in each place. Rank 1 is the most expensive market, where this value sits lowest."
+                ? "Shows where a home at this value would fall in each area. Rank 1 is the most expensive market, where this value sits lowest."
                 : `Enter a home value from ${formatCurrency(MIN_HOME_VALUE)} to ${formatCurrency(MAX_HOME_VALUE)}.`
               : percentileIsValid
-                ? "Ranks places by the home value at this percentile, highest first."
+                ? "Ranks areas by the home value at this percentile, highest first."
                 : "Enter an integer percentile from 1 to 99."}{" "}
             Only market-adjusted values are supported as these are cross-county
             comparisons.
@@ -333,8 +365,17 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
         {queryIsValid && (
           <article className="ranking-table-panel">
             <div className="ranking-table-heading">
-              <h2>Place Rankings</h2>
-              <p className="ranking-filter">n ≥ {MIN_SAMPLE_SIZE}</p>
+              <h2>{levelInfo.heading} Rankings</h2>
+              <div className="ranking-table-tools">
+                <p className="ranking-filter">n ≥ {MIN_SAMPLE_SIZE}</p>
+                <button
+                  type="button"
+                  className="ranking-download"
+                  onClick={handleDownload}
+                >
+                  Download CSV
+                </button>
+              </div>
             </div>
 
             <div className="ranking-table-scroll">
@@ -342,7 +383,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
                 <thead>
                   <tr>
                     <th scope="col">Rank</th>
-                    <th scope="col">Place Name</th>
+                    <th scope="col">Name</th>
                     <th scope="col">n</th>
                     <th scope="col">{barHeading}</th>
                   </tr>
@@ -358,6 +399,9 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
                         >
                           {row.name}
                         </Link>
+                        {row.county && (
+                          <span className="ranking-county">{row.county}</span>
+                        )}
                       </th>
                       <td className="ranking-count">{formatNumber(row.n)}</td>
                       <td>

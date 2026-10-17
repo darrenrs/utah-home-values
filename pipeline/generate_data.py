@@ -30,6 +30,7 @@ PROCESSED_DATA_DIR = WEBSITE_DIR / "public" / "data"
 GDB_PATH = RAW_DATA_DIR / "HousingUnitInventory.gdb"
 GDB_LAYER_NAME = "HousingUnitInventory"
 COUNTY_QUALITY_PATH = CONFIG_DIR / "counties.yml"
+MARKET_CONTEXT_PATH = CONFIG_DIR / "market_context.yml"
 SHAPEFILE_PLACE_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_49_place.zip"
 SHAPEFILE_ZCTA5_ZIP_PATH = SHAPEFILES_DIR / "tl_2024_us_zcta520.zip"
 
@@ -40,6 +41,7 @@ DATASET_FILENAMES = {
     "huiMarketAdjustedValues": "hui_market_adjusted_values.json",
     "huiAssessedValues": "hui_assessed_values.json",
     "acsValues": "acs_values.json",
+    "marketContext": "market_context.json",
 }
 
 MAX_POLYGON_VERTICES = 10_000
@@ -131,6 +133,44 @@ def join_shapefile(
 def load_county_quality():
     with open(COUNTY_QUALITY_PATH, "r") as f:
         return yaml.safe_load(f)
+
+
+def load_market_context_config():
+    with open(MARKET_CONTEXT_PATH, "r") as f:
+        return yaml.safe_load(f)
+
+
+# Per-county adjustment factors and metro price changes for the site's
+# calculator, market-value label, and "prices since" note.
+def build_market_context(county_quality, market_config):
+    metros = {}
+    metro_by_county = {}
+    for metro_id, metro in market_config["metros"].items():
+        change = metro["latest_quarter_value"] / metro["market_value_year_average"] - 1
+        metros[metro_id] = {
+            "name": metro["name"],
+            "series": metro["series"],
+            "changePercent": round(change * 100, 1),
+        }
+        for county in metro["counties"]:
+            metro_by_county[county] = metro_id
+
+    counties = {
+        geography_id("county", county): {
+            "adjustmentFactor": round(quality["hpi_ratio"] / quality["assessment_sales_ratio"], 4),
+            "assessedValueYear": clean_year(quality["assessed_value_year"]),
+            "metro": metro_by_county.get(county),
+        }
+        for county, quality in county_quality.items()
+        if quality.get("is_valid")
+    }
+
+    return {
+        "marketValueYear": int(market_config["market_value_year"]),
+        "latestQuarter": str(market_config["latest_quarter"]),
+        "metros": metros,
+        "counties": counties,
+    }
 
 
 def get_wasatch_front_counties(county_quality):
@@ -675,6 +715,9 @@ def main():
         PROCESSED_DATA_DIR,
         {
             DATASET_FILENAMES["geographies"]: geography_catalog,
+            DATASET_FILENAMES["marketContext"]: build_market_context(
+                county_quality, load_market_context_config()
+            ),
             DATASET_FILENAMES["huiAssessedValues"]: assessed_values,
             DATASET_FILENAMES["huiMarketAdjustedValues"]: market_adjusted_values,
             "manifest.json": build_manifest(),

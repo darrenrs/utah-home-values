@@ -1,0 +1,42 @@
+# Context for the market-adjusted values shown on the site.
+#
+# market_value_year: the calendar year whose average prices the market-adjusted
+# values represent (the target of hpi_ratio in counties.yml).
+#
+# metros: FHFA All-Transactions HPI quarterly series (FRED ATNHPIUS{CBSA}Q) used
+# only for the "prices since" note on the site. It never changes published values.
+#   market_value_year_average: mean of the four quarters of market_value_year
+#   latest_quarter_value: the index value for latest_quarter
+# Values retrieved from FRED on 2026-10-16.
+
+market_value_year: 2025
+latest_quarter: 2026 Q2
+
+metros:
+  salt-lake-city-murray:
+    name: Salt Lake City-Murray
+    series: ATNHPIUS41620Q
+    counties: [Salt Lake, Tooele]
+    market_value_year_average: 485.835
+    latest_quarter_value: 497.51
+
+  provo-orem-lehi:
+    name: Provo-Orem-Lehi
+    series: ATNHPIUS39340Q
+    counties: [Utah]
+    market_value_year_average: 437.933
+    latest_quarter_value: 450.70
+
+  ogden:
+    name: Ogden
+    series: ATNHPIUS36260Q
+    counties: [Davis, Morgan, Weber]
+    market_value_year_average: 441.692
+    latest_quarter_value: 455.11
+
+  st-george:
+    name: St. George
+    series: ATNHPIUS41100Q
+    counties: [Washington]
+    market_value_year_average: 373.37
+    latest_quarter_value: 375.30

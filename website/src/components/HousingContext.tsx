@@ -1,5 +1,6 @@
 import type { AcsGeographyValues, ValueStats } from "../data/loadData";
 import { formatCurrency } from "../lib/format";
+import { estimatePercentile } from "../lib/percentiles";
 
 function formatPercent(value: number) {
   return `${Math.round(value)}%`;
@@ -19,6 +20,21 @@ function confidenceInterval(
   const upper = Math.min(bounds?.max ?? Infinity, estimate + moe90);
 
   return `90% CI: ${formatter(lower)}-${formatter(upper)}`;
+}
+
+// Share of homes valued at or below a threshold, read off the percentile curve.
+function shareAtOrBelow(percentiles: number[], threshold: number) {
+  const position = estimatePercentile(percentiles, threshold);
+
+  if (position.bound === "below") {
+    return "<1%";
+  }
+
+  if (position.bound === "above") {
+    return ">99%";
+  }
+
+  return `${Math.round(position.percentile)}%`;
 }
 
 function affordabilityDescription(value: number) {
@@ -76,12 +92,8 @@ function HousingContext({
       <p className="subheader-description">
         The median home value / median household income ratio is a simple
         measure of local affordability pressure. A higher ratio means home
-        values are high relative to local incomes. Labels follow the Demographia
-        scale: 3.0 or below is affordable, 3.1 to 4.0 moderately unaffordable,
-        4.1 to 5.0 seriously unaffordable, and above 5.0 severely unaffordable.
-        Incomes are 2020–2024 American Community Survey estimates, so ratios
-        run slightly high. Median household income and owner-occupied housing
-        share are provided for additional context.
+        values are high relative to local incomes. Median household income and
+        owner-occupied housing share are provided for additional context.
       </p>
       <div className="context-grid">
         <article className="context-card">
@@ -118,6 +130,20 @@ function HousingContext({
         </article>
 
         <article className="context-card">
+          <h4>Homes Within 3× Median HHI</h4>
+          <p className="context-value">
+            {hasIncome
+              ? shareAtOrBelow(homeValueStats.percentiles, 3 * income)
+              : "Not available"}
+          </p>
+          {hasIncome && (
+            <p className="context-ci">
+              homes valued at ≤{formatCurrency(3 * income)}
+            </p>
+          )}
+        </article>
+
+        <article className="context-card">
           <h4>Owner-Occupied Housing Share</h4>
           <p className="context-value">
             {ownerShare !== null ? formatPercent(ownerShare) : "Not available"}
@@ -132,6 +158,12 @@ function HousingContext({
           )}
         </article>
       </div>
+      <p className="data-note">
+        Labels follow the Demographia scale: 3.0 or below is affordable, 3.1 to
+        4.0 moderately unaffordable, 4.1 to 5.0 seriously unaffordable, and
+        above 5.0 severely unaffordable. Incomes are 2020–2024 American
+        Community Survey estimates, so ratios run slightly high.
+      </p>
     </section>
   );
 }

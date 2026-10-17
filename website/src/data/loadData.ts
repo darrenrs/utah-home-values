@@ -38,6 +38,23 @@ export type AcsValues = {
   geographies: Record<string, AcsGeographyValues>;
 };
 
+export type MarketContext = {
+  marketValueYear: number;
+  latestQuarter: string;
+  metros: Record<
+    string,
+    { name: string; series: string; changePercent: number }
+  >;
+  counties: Record<
+    string,
+    {
+      adjustmentFactor: number;
+      assessedValueYear: number | null;
+      metro: string | null;
+    }
+  >;
+};
+
 type DataManifest = {
   schemaVersion: number;
   generatedAt: string;
@@ -46,6 +63,7 @@ type DataManifest = {
     huiMarketAdjustedValues: string;
     huiAssessedValues: string;
     acsValues: string;
+    marketContext?: string;
   };
 };
 
@@ -53,6 +71,8 @@ export type DataBundle = {
   geographies: GeographyCatalog;
   datasets: Record<ValueMode, AttributeData>;
   acsValues: AcsValues;
+  // Missing when the data predates market context; features that need it hide.
+  marketContext?: MarketContext;
 };
 
 let dataPromise: Promise<DataBundle> | undefined;
@@ -103,20 +123,30 @@ async function fetchData(): Promise<DataBundle> {
 
   assertSupportedManifest(manifest);
 
-  const [geographies, market, assessed, acsValues] = await Promise.all([
-    fetchJson<GeographyCatalog>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.geographies),
-    ),
-    fetchJson<AttributeData>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.huiMarketAdjustedValues),
-    ),
-    fetchJson<AttributeData>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.huiAssessedValues),
-    ),
-    fetchJson<AcsValues>(
-      resolveDatasetUrl(manifestUrl, manifest.datasets.acsValues),
-    ),
-  ]);
+  const marketContextPath = manifest.datasets.marketContext;
+  const [geographies, market, assessed, acsValues, marketContext] =
+    await Promise.all([
+      fetchJson<GeographyCatalog>(
+        resolveDatasetUrl(manifestUrl, manifest.datasets.geographies),
+      ),
+      fetchJson<AttributeData>(
+        resolveDatasetUrl(
+          manifestUrl,
+          manifest.datasets.huiMarketAdjustedValues,
+        ),
+      ),
+      fetchJson<AttributeData>(
+        resolveDatasetUrl(manifestUrl, manifest.datasets.huiAssessedValues),
+      ),
+      fetchJson<AcsValues>(
+        resolveDatasetUrl(manifestUrl, manifest.datasets.acsValues),
+      ),
+      marketContextPath
+        ? fetchJson<MarketContext>(
+            resolveDatasetUrl(manifestUrl, marketContextPath),
+          )
+        : Promise.resolve(undefined),
+    ]);
 
   return {
     geographies,
@@ -125,6 +155,7 @@ async function fetchData(): Promise<DataBundle> {
       assessed,
     },
     acsValues,
+    marketContext,
   };
 }
 

@@ -25,11 +25,13 @@ function GeographySelector({
   options,
   selectedId,
   onChange,
+  ariaLabel = "Select geography",
 }: {
   geoType: GeographyType;
   options: GeographyOption[];
   selectedId: string;
   onChange: (id: string) => void;
+  ariaLabel?: string;
 }) {
   const groupedOptions = useMemo(() => {
     if (geoType !== "place" && geoType !== "zcta5") {
@@ -80,7 +82,7 @@ function GeographySelector({
   return (
     <ComboBox
       className="geography-selector"
-      aria-label="Select geography"
+      aria-label={ariaLabel}
       allowsEmptyCollection
       selectedKey={selectedId}
       onSelectionChange={(key) => {

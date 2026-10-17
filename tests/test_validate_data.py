@@ -5,6 +5,7 @@ from shapely.geometry import Point
 
 from pipeline.generate_data import (
     DATASET_FILENAMES,
+    build_market_context,
     drop_small_geographies,
     filter_valid_housing_units,
     geography_assessed_value_years,
@@ -253,6 +254,44 @@ def test_geography_assessed_value_years_requires_90_percent_share():
     years = geography_assessed_value_years(matched, "PLACE_GEOID")
 
     assert years == {"a": 2024, "b": None}
+
+
+def test_build_market_context_reports_factors_and_metro_changes():
+    county_quality = {
+        "Davis": {
+            "is_valid": True,
+            "assessed_value_year": 2024,
+            "assessment_sales_ratio": 0.9673,
+            "hpi_ratio": 1.0438,
+        },
+        "Summit": {"is_valid": False},
+    }
+    market_config = {
+        "market_value_year": 2025,
+        "latest_quarter": "2026 Q2",
+        "metros": {
+            "ogden": {
+                "name": "Ogden",
+                "series": "ATNHPIUS36260Q",
+                "counties": ["Davis"],
+                "market_value_year_average": 441.692,
+                "latest_quarter_value": 455.11,
+            },
+        },
+    }
+
+    context = build_market_context(county_quality, market_config)
+
+    assert context["marketValueYear"] == 2025
+    assert context["latestQuarter"] == "2026 Q2"
+    assert context["metros"]["ogden"]["changePercent"] == 3.0
+    assert context["counties"] == {
+        "county:davis": {
+            "adjustmentFactor": 1.0791,
+            "assessedValueYear": 2024,
+            "metro": "ogden",
+        },
+    }
 
 
 def test_rejects_missing_required_housing_source_value():

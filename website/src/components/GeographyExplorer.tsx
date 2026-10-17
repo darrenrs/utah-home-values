@@ -10,6 +10,7 @@ import type {
   DataBundle,
   DataSection,
   GeographyCatalog,
+  MarketContext,
   ValueMode,
   ValueStats,
 } from "../data/loadData";
@@ -19,6 +20,7 @@ import GeographySelector, {
   type GeographyOption,
   type GeographyType,
 } from "./GeographySelector";
+import HomeValueLookup from "./HomeValueLookup";
 import HousingContext from "./HousingContext";
 
 ChartJS.register(...registerables);
@@ -28,6 +30,12 @@ type PercentilePoint = {
   percentile: number;
   label: string;
   value: number;
+};
+
+type ChartSeries = {
+  label: string;
+  points: PercentilePoint[];
+  kind: "primary" | "parent" | "compare";
 };
 
 type CustomAreaSummary = {
@@ -43,10 +51,9 @@ const GEO_TYPES = [
   { id: "zcta5", label: "ZIP Code" },
 ] satisfies Array<{ id: GeographyType; label: string }>;
 
-const VALUE_MODES = [
-  { id: "market" },
-  { id: "assessed" },
-] satisfies Array<{ id: ValueMode }>;
+const VALUE_MODES = [{ id: "market" }, { id: "assessed" }] satisfies Array<{
+  id: ValueMode;
+}>;
 
 const HIGHLIGHTS = [
   { percentile: 10, label: "10th Percentile" },
@@ -182,10 +189,59 @@ function assessedValueYearLabel(year: number | null | undefined) {
 function valueModeLabel(
   valueMode: ValueMode,
   assessedValueYear: number | null,
+  marketValueYear: number | null,
 ) {
-  return valueMode === "assessed"
-    ? `Assessed (${assessedValueYearLabel(assessedValueYear)})`
-    : "Market-adjusted (2025)";
+  if (valueMode === "assessed") {
+    return `Assessed (${assessedValueYearLabel(assessedValueYear)})`;
+  }
+
+  return marketValueYear
+    ? `Market-adjusted (${marketValueYear})`
+    : "Market-adjusted";
+}
+
+// The county a geography belongs to: the county itself, or a place's or ZIP
+// code's primary county. Regions span several counties.
+function primaryCountyId(geographies: GeographyCatalog, id: string) {
+  const metadata = geographies[id];
+
+  if (metadata?.type === "County") {
+    return id;
+  }
+
+  const parent = metadata?.parentGeography;
+  return parent && geographies[parent]?.type === "County" ? parent : undefined;
+}
+
+function PriceTrendNote({
+  marketContext,
+  countyId,
+}: {
+  marketContext: MarketContext;
+  countyId: string;
+}) {
+  const metroId = marketContext.counties[countyId]?.metro;
+  const metro = metroId ? marketContext.metros[metroId] : undefined;
+
+  if (!metro) {
+    return null;
+  }
+
+  const change = metro.changePercent;
+  const movement =
+    change > 0
+      ? `risen ${change.toFixed(1)}%`
+      : change < 0
+        ? `fallen ${Math.abs(change).toFixed(1)}%`
+        : "been flat";
+
+  return (
+    <p className="data-note">
+      Values reflect {marketContext.marketValueYear} average prices. Since then,
+      FHFA's house price index for the {metro.name} metro area has {movement}{" "}
+      (through {marketContext.latestQuarter}).
+    </p>
+  );
 }
 
 function isValueStats(value: unknown): value is ValueStats {
@@ -254,7 +310,7 @@ function getParentComparison(
   const signedDifference =
     difference >= 0 ? `+${difference}` : String(difference);
 
-  return `${signedDifference}% from ${parentName}`;
+  return `${signedDifference}% vs ${parentName}`;
 }
 
 function geoEyebrow(geoType: GeographyType) {
@@ -298,7 +354,7 @@ function getRootCssValue(name: string, fallback: string) {
   return value || fallback;
 }
 
-function PercentileChart({ points }: { points: PercentilePoint[] }) {
+function PercentileChart({ series }: { series: ChartSeries[] }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartJS<
     "line",
@@ -324,6 +380,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
       line: getRootCssValue("--accent", "#60a5fa"),
       point: getRootCssValue("--surface", "#ffffff"),
       highlight: getRootCssValue("--text", "#151923"),
+      compare: getRootCssValue("--text", "#151923"),
       tooltipBackground: getRootCssValue("--surface", "#ffffff"),
       tooltipText: getRootCssValue("--text", "#151923"),
     };
@@ -338,41 +395,69 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
     > = {
       type: "line",
       data: {
-        datasets: [
-          {
-            label: "Value",
-            data: points.map((point) => ({
-              x: point.percentile,
-              y: point.value,
-            })),
-            borderColor: colors.line,
-            borderWidth: 1,
-            pointBackgroundColor: points.map((point) =>
-              highlightPercentiles.has(point.percentile)
-                ? colors.highlight
-                : colors.point,
-            ),
-            pointBorderColor: colors.line,
-            pointHoverBackgroundColor: colors.highlight,
-            pointHoverBorderColor: colors.line,
-            pointRadius: points.map((point) =>
-              highlightPercentiles.has(point.percentile) ? 3 : 2,
-            ),
-            pointHoverRadius: 4,
-            cubicInterpolationMode: "monotone",
-          },
-        ],
+        datasets: series.map((item) => {
+          const data = item.points.map((point) => ({
+            x: point.percentile,
+            y: point.value,
+          }));
+
+          if (item.kind === "primary") {
+            return {
+              label: item.label,
+              data,
+              borderColor: colors.line,
+              backgroundColor: colors.line,
+              borderWidth: 1.5,
+              pointBackgroundColor: item.points.map((point) =>
+                highlightPercentiles.has(point.percentile)
+                  ? colors.highlight
+                  : colors.point,
+              ),
+              pointBorderColor: colors.line,
+              pointHoverBackgroundColor: colors.highlight,
+              pointHoverBorderColor: colors.line,
+              pointRadius: item.points.map((point) =>
+                highlightPercentiles.has(point.percentile) ? 3 : 2,
+              ),
+              pointHoverRadius: 4,
+              cubicInterpolationMode: "monotone" as const,
+            };
+          }
+
+          const color = item.kind === "parent" ? colors.text : colors.compare;
+          return {
+            label: item.label,
+            data,
+            borderColor: color,
+            backgroundColor: color,
+            borderWidth: 1.25,
+            borderDash: item.kind === "parent" ? [5, 4] : [],
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            cubicInterpolationMode: "monotone" as const,
+          };
+        }),
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         interaction: {
           intersect: false,
-          mode: "nearest",
+          mode: "index",
         },
         plugins: {
           legend: {
-            display: false,
+            display: series.length > 1,
+            align: "start",
+            labels: {
+              padding: 4,
+              color: colors.text,
+              boxHeight: 2,
+              boxWidth: 18,
+              font: {
+                family: colors.font,
+              },
+            },
           },
           tooltip: {
             backgroundColor: colors.tooltipBackground,
@@ -387,11 +472,10 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
               family: colors.font,
             },
             callbacks: {
-              title: () => "",
-              label: (context: TooltipItem<"line">) => {
-                const percentile = Number(context.parsed.x);
-                return `${percentile}%: ${formatCurrency(context.parsed.y ?? undefined)}`;
-              },
+              title: (items) =>
+                items.length ? `P${Number(items[0].parsed.x)}` : "",
+              label: (context: TooltipItem<"line">) =>
+                `${context.dataset.label}: ${formatCurrency(context.parsed.y ?? undefined)}`,
             },
           },
         },
@@ -438,13 +522,33 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
       },
     };
 
+    // Chart.js has no legend margin option; grow the legend box so the labels
+    // sit closer to the title and further from the plot.
+    config.plugins = [
+      {
+        id: "legendBottomMargin",
+        beforeInit(chart) {
+          const legend = chart.legend;
+          if (!legend) {
+            return;
+          }
+
+          const fit = legend.fit.bind(legend);
+          legend.fit = () => {
+            fit();
+            legend.height += 12;
+          };
+        },
+      },
+    ];
+
     chartRef.current = new ChartJS(canvasRef.current, config);
 
     return () => {
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [points, colorSchemeSignal]);
+  }, [series, colorSchemeSignal]);
 
   return (
     <div className="chart-card">
@@ -521,7 +625,8 @@ function SampleSizeNotice({ level }: { level: "warning" | "error" }) {
 }
 
 function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
-  const { acsValues, datasets, geographies } = dataBundle;
+  const { acsValues, datasets, geographies, marketContext } = dataBundle;
+  const marketValueYear = marketContext?.marketValueYear ?? null;
   const hashGeographyId = getHashGeographyId(geographies);
   const [geoType, setGeoType] = useState<GeographyType>(() =>
     hashGeographyId
@@ -539,6 +644,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   const [isAnalyzingCustomArea, setIsAnalyzingCustomArea] = useState(false);
   const [customAreaSummary, setCustomAreaSummary] =
     useState<CustomAreaSummary>();
+  const [compareId, setCompareId] = useState<string>();
 
   const activeData = datasets[valueMode];
   const rows = useMemo(
@@ -576,6 +682,38 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
     () => (parentStats ? normalizePercentiles(parentStats) : []),
     [parentStats],
   );
+  // Assessed values are only comparable within one county: each county has its
+  // own assessment year and assessment/sales ratio. Areas that fail the 90%
+  // single-year check have no assessed year, so they can't be compared either.
+  const isAssessedComparable = (id: string) =>
+    assessedValueYear !== null &&
+    geographies[id]?.assessedValueYear === assessedValueYear &&
+    primaryCountyId(geographies, id) !== undefined &&
+    primaryCountyId(geographies, id) ===
+      primaryCountyId(geographies, activeSelectedId) &&
+    id !== primaryCountyId(geographies, id);
+  const isComparableArea = (id: string) =>
+    valueMode === "market" || isAssessedComparable(id);
+  const activeCompareId =
+    !customAreaSummary && compareId && isComparableArea(compareId)
+      ? compareId
+      : undefined;
+  const compareStats = activeCompareId
+    ? activeData[sectionForGeoType(geoType)][activeCompareId]
+    : undefined;
+  const compareName = activeCompareId
+    ? geographies[activeCompareId]?.name
+    : undefined;
+  const comparePercentilePoints = useMemo(
+    () => (compareStats ? normalizePercentiles(compareStats) : []),
+    [compareStats],
+  );
+  const compareOptions = rows.filter(
+    (row) => row.id !== activeSelectedId && isComparableArea(row.id),
+  );
+  const contextCounty = customAreaSummary
+    ? undefined
+    : primaryCountyId(geographies, activeSelectedId);
   const sampleSizeLevel =
     selected && selected.n < 20
       ? "error"
@@ -586,6 +724,34 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
     () => (selected ? normalizePercentiles(selected) : []),
     [selected],
   );
+  const chartSeries = useMemo(() => {
+    const series: ChartSeries[] = [
+      { label: selectedLabel, points: percentilePoints, kind: "primary" },
+    ];
+
+    if (compareName && comparePercentilePoints.length) {
+      series.push({
+        label: compareName,
+        points: comparePercentilePoints,
+        kind: "compare",
+      });
+    } else if (parentMetadata && parentPercentilePoints.length) {
+      series.push({
+        label: parentMetadata.name,
+        points: parentPercentilePoints,
+        kind: "parent",
+      });
+    }
+
+    return series;
+  }, [
+    selectedLabel,
+    percentilePoints,
+    compareName,
+    comparePercentilePoints,
+    parentMetadata,
+    parentPercentilePoints,
+  ]);
 
   useEffect(() => {
     if (!isApiConfigured) {
@@ -619,6 +785,8 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
     const syncFromHash = () => {
       const nextSelectedId = getHashGeographyId(geographies);
 
+      setCompareId(undefined);
+
       if (nextSelectedId) {
         setCustomAreaSummary(undefined);
         setGeoType(geoTypeForSection(geographies[nextSelectedId].type));
@@ -636,6 +804,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
 
   const handleSelectionChange = (nextSelectedId: string) => {
     setCustomAreaSummary(undefined);
+    setCompareId(undefined);
     setSelectedId(nextSelectedId);
     updateHash(nextSelectedId);
   };
@@ -656,6 +825,14 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
     if (customAreaSummary) {
       setValueMode(nextValueMode);
       return;
+    }
+
+    if (
+      nextValueMode === "assessed" &&
+      compareId &&
+      !isAssessedComparable(compareId)
+    ) {
+      setCompareId(undefined);
     }
 
     const nextData = datasets[nextValueMode];
@@ -774,10 +951,7 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                   <p className="subheader-description">
                     You can add a geography here. A simple tool to generate the
                     code needed to make this work is{" "}
-                    <a href="https://geojson.io/">
-                      geojson.io
-                    </a>
-                    .
+                    <a href="https://geojson.io/">geojson.io</a>.
                   </p>
                   <textarea
                     className="custom-area-textarea"
@@ -839,87 +1013,163 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                       }
                       onClick={() => handleValueModeChange(item.id)}
                     >
-                      {valueModeLabel(item.id, assessedValueYear)}
+                      {valueModeLabel(
+                        item.id,
+                        assessedValueYear,
+                        marketValueYear,
+                      )}
                     </button>
                   ))}
                 </div>
                 <p className="value-control-note">
-                  Assessed values use each county's own assessment year, so
-                  they can't be compared across counties.
+                  Assessed values use each county's own assessment year, so they
+                  can't be compared across counties.
                 </p>
               </div>
             </div>
           </div>
 
+          {!customAreaSummary && compareOptions.length > 0 && (
+            <div className="compare-control">
+              <span className="control-label">Compare with</span>
+              <div className="compare-control-row">
+                <GeographySelector
+                  geoType={geoType}
+                  options={compareOptions}
+                  selectedId={activeCompareId ?? ""}
+                  onChange={setCompareId}
+                  ariaLabel="Compare with another geography"
+                />
+                {activeCompareId && (
+                  <button
+                    type="button"
+                    className="compare-clear"
+                    onClick={() => setCompareId(undefined)}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {sampleSizeLevel && <SampleSizeNotice level={sampleSizeLevel} />}
 
           {sampleSizeLevel !== "error" && (
             <>
-              <section className="metric-section">
-                <h3 className="metric-section-title">Home Value Percentiles</h3>
-                <p className="subheader-description">
-                  Percentiles show where home values fall within the selected
-                  area. For example, a 10th percentile home value of{" "}
-                  {formatCurrency(getPercentileValue(percentilePoints, 10))}{" "}
-                  means about 10% of homes are valued at or below{" "}
-                  {formatCurrency(getPercentileValue(percentilePoints, 10))}.
-                  The median is the 50th percentile, or the middle value in the
-                  distribution.
-                </p>
-                <div className="metric-grid">
-                  {HIGHLIGHTS.map((item) => {
-                    const value = getPercentileValue(
-                      percentilePoints,
-                      item.percentile,
-                    );
-                    const parentComparison =
-                      valueMode === "market" || parentMetadata?.type === "County"
-                        ? getParentComparison(
-                            value,
-                            getPercentileValue(
-                              parentPercentilePoints,
-                              item.percentile,
-                            ),
-                            parentMetadata?.name,
-                          )
-                        : undefined;
+              <div
+                className={`summary-body${sampleSizeLevel !== "warning" ? " has-chart" : ""}`}
+              >
+                <div className="summary-main">
+                  <section className="metric-section">
+                    <h3 className="metric-section-title">
+                      Home Value Percentiles
+                    </h3>
+                    <p className="subheader-description">
+                      Percentiles show where home values fall within the
+                      selected area. For example, a 10th percentile home value
+                      of{" "}
+                      {formatCurrency(getPercentileValue(percentilePoints, 10))}{" "}
+                      means about 10% of homes are valued at or below{" "}
+                      {formatCurrency(getPercentileValue(percentilePoints, 10))}
+                      . The median is the 50th percentile, or the middle value
+                      in the distribution.
+                    </p>
+                    <div className="metric-grid">
+                      {HIGHLIGHTS.map((item) => {
+                        const value = getPercentileValue(
+                          percentilePoints,
+                          item.percentile,
+                        );
+                        const parentComparison = compareStats
+                          ? getParentComparison(
+                              value,
+                              getPercentileValue(
+                                comparePercentilePoints,
+                                item.percentile,
+                              ),
+                              compareName,
+                            )
+                          : valueMode === "market" ||
+                              parentMetadata?.type === "County"
+                            ? getParentComparison(
+                                value,
+                                getPercentileValue(
+                                  parentPercentilePoints,
+                                  item.percentile,
+                                ),
+                                parentMetadata?.name,
+                              )
+                            : undefined;
 
-                    return (
-                      <article key={item.percentile} className="metric">
-                        <h4>{item.label}</h4>
-                        <p className="metric-value">{formatCurrency(value)}</p>
-                        {parentComparison && (
-                          <p className="metric-comparison">
-                            {parentComparison}
-                          </p>
-                        )}
-                      </article>
-                    );
-                  })}
+                        return (
+                          <article
+                            key={item.percentile}
+                            className={`metric${item.percentile === 50 ? " metric--median" : ""}`}
+                          >
+                            <h4>{item.label}</h4>
+                            <p className="metric-value">
+                              {formatCurrency(value)}
+                            </p>
+                            {parentComparison && (
+                              <p className="metric-comparison">
+                                {parentComparison}
+                              </p>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                    {marketContext &&
+                      contextCounty &&
+                      valueMode === "market" && (
+                        <PriceTrendNote
+                          marketContext={marketContext}
+                          countyId={contextCounty}
+                        />
+                      )}
+                  </section>
+
+                  {!customAreaSummary &&
+                    activeSelectedId !== WASATCH_FRONT_ID && (
+                      <HousingContext
+                        acsValues={acsValues.geographies[activeSelectedId]}
+                        homeValueStats={
+                          datasets.market[sectionForGeoType(geoType)][
+                            activeSelectedId
+                          ]
+                        }
+                      />
+                    )}
                 </div>
-              </section>
 
-              {!customAreaSummary && activeSelectedId !== WASATCH_FRONT_ID && (
-                <HousingContext
-                  acsValues={acsValues.geographies[activeSelectedId]}
-                  homeValueStats={
-                    datasets.market[sectionForGeoType(geoType)][activeSelectedId]
-                  }
-                />
-              )}
-
-              {sampleSizeLevel !== "warning" && (
-                <PercentileChart points={percentilePoints} />
-              )}
+                {sampleSizeLevel !== "warning" && (
+                  <div className="summary-side">
+                    <PercentileChart series={chartSeries} />
+                  </div>
+                )}
+              </div>
               <p className="explorer-note">
-                Values are rounded to the nearest $1,000. To place your own
-                home, look up its assessed value in your county's parcel search,
-                find that percentile in the Assessed view, then switch to
-                Market-adjusted and read the value at the same percentile.
+                Values are rounded to the nearest $1,000.
+                {
+                  " To see where a specific home value falls, use the lookup below."
+                }
               </p>
             </>
           )}
         </article>
+      )}
+
+      {selected && sampleSizeLevel !== "error" && (
+        <HomeValueLookup
+          valueLabel={valueModeLabel(
+            valueMode,
+            assessedValueYear,
+            marketValueYear,
+          )}
+          areaName={customAreaSummary ? "this custom area" : selectedLabel}
+          stats={selected}
+        />
       )}
     </section>
   );

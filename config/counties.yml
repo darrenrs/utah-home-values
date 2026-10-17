@@ -1,3 +1,13 @@
+# hpi_ratio converts a Jan 1 (assessment-date) market value to the 2025 annual average:
+#   hpi_ratio = [county_annual(2025) / county_annual(Y)] * [metro_avg(Y) / metro_jan1(Y)]
+# where Y = assessed_value_year, metro_jan1(Y) = mean(metro Q4 of Y-1, metro Q1 of Y),
+# and metro_avg(Y) = mean of the four metro quarters of Y.
+# County annual: FHFA All-Transactions HPI, FRED ATNHPIUS{county FIPS}A.
+# Metro quarterly: FHFA All-Transactions HPI, FRED ATNHPIUS{CBSA}Q (no quarterly county index exists).
+# Metros use OMB 2023 delineations (FHFA since 2025Q1): Ogden = Davis, Morgan, Weber;
+# Salt Lake City-Murray = Salt Lake, Tooele; Provo-Orem-Lehi = Utah, Juab; St. George = Washington.
+# Values retrieved from FRED on 2026-10-16.
+
 Davis:
   is_valid: true
   is_wasatch_front: true
@@ -5,7 +15,8 @@ Davis:
   latest_year_built_with_value: 2023
   latest_year_built_with_oug_set: 2021
   assessment_sales_ratio: 0.9673
-  hpi_ratio: 1.0200
+  # ATNHPIUS49011A 306.40 / 300.38; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
+  hpi_ratio: 1.0438
 
 Morgan:
   is_valid: true
@@ -14,7 +25,8 @@ Morgan:
   latest_year_built_with_value: 2022
   latest_year_built_with_oug_set: 2023
   assessment_sales_ratio: 0.9748
-  hpi_ratio: 1.0236
+  # ATNHPIUS49029A 324.06 / 316.60; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
+  hpi_ratio: 1.0474
 
 Salt Lake:
   is_valid: true
@@ -23,7 +35,8 @@ Salt Lake:
   latest_year_built_with_value: 2023
   latest_year_built_with_oug_set: 2021
   assessment_sales_ratio: 1.0003
-  hpi_ratio: 1.0260
+  # ATNHPIUS49035A 341.57 / 332.93; Salt Lake City-Murray ATNHPIUS41620Q avg 2024 470.60 / Jan 1 455.430
+  hpi_ratio: 1.0601
 
 Tooele:
   is_valid: true
@@ -32,7 +45,8 @@ Tooele:
   latest_year_built_with_value: 2023
   latest_year_built_with_oug_set: 2023
   assessment_sales_ratio: 0.9763
-  hpi_ratio: 1.0098
+  # ATNHPIUS49045A 304.43 / 301.48; Salt Lake City-Murray ATNHPIUS41620Q avg 2024 470.60 / Jan 1 455.430
+  hpi_ratio: 1.0434
 
 Utah:
   is_valid: true
@@ -41,7 +55,8 @@ Utah:
   latest_year_built_with_value: 2022
   latest_year_built_with_oug_set: 2025
   assessment_sales_ratio: 0.9590
-  hpi_ratio: 1.0688
+  # ATNHPIUS49049A 309.82 / 289.88; Provo-Orem-Lehi ATNHPIUS39340Q avg 2023 407.01 / Jan 1 401.555
+  hpi_ratio: 1.0833
 
 Washington:
   is_valid: true
@@ -49,8 +64,10 @@ Washington:
   assessed_value_year: 2026
   latest_year_built_with_value: 2026
   latest_year_built_with_oug_set: 2026
+  # Warning: srs2026 (2025 assessments) used as a stand-in until srs2027 is published
   assessment_sales_ratio: 0.9523
-  hpi_ratio: 1  # Warning: values for 2026 are not yet available as of Oct 15, 2026
+  # No 2026 county annual yet, so metro only: St. George ATNHPIUS41100Q avg 2025 373.37 / Jan 1 2026 378.365
+  hpi_ratio: 0.9868
 
 Weber:
   is_valid: true
@@ -59,7 +76,8 @@ Weber:
   latest_year_built_with_value: 2023
   latest_year_built_with_oug_set: 2022
   assessment_sales_ratio: 0.9450
-  hpi_ratio: 1.0309
+  # ATNHPIUS49057A 323.73 / 314.03; Ogden ATNHPIUS36260Q avg 2024 428.56 / Jan 1 418.805
+  hpi_ratio: 1.0549
 
 Box Elder:
   is_valid: false

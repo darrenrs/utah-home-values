@@ -22,9 +22,10 @@ export type GeographyMetadata = {
 export type GeographyCatalog = Record<string, GeographyMetadata>;
 export type AttributeData = Record<DataSection, Record<string, ValueStats>>;
 
+// Null when the Census Bureau reports the value as unavailable.
 export type EstimateWithMoe = {
-  estimate: number;
-  moe90: number;
+  estimate: number | null;
+  moe90: number | null;
 };
 
 export type AcsGeographyValues = {

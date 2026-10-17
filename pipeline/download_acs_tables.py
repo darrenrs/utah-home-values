@@ -61,8 +61,13 @@ def fetch_rows(api_key: str, geography: str, within_state=False):
 
 def parse_number(value: str):
     number = float(value)
-    if not math.isfinite(number) or number < 0:
+    if not math.isfinite(number):
         raise ValueError(f"Invalid ACS numeric value: {value}")
+
+    # The Census API reports unavailable estimates and margins of error as large
+    # negative sentinel values (for example -666666666 or -222222222).
+    if number < 0:
+        return None
 
     return int(number) if number.is_integer() else number
 
@@ -73,12 +78,15 @@ def owner_occupied_percent(row):
     owner_occupied_units = parse_number(row["B25003_002E"])
     owner_occupied_units_moe = parse_number(row["B25003_002M"])
 
-    if occupied_units == 0:
-        raise ValueError(f"Occupied housing unit count is zero for {row['NAME']}")
+    if occupied_units is None or owner_occupied_units is None or occupied_units == 0:
+        return {"estimate": None, "moe90": None}
     if owner_occupied_units > occupied_units:
         raise ValueError(f"Owner-occupied unit count exceeds total for {row['NAME']}")
 
     proportion = owner_occupied_units / occupied_units
+    if occupied_units_moe is None or owner_occupied_units_moe is None:
+        return {"estimate": round(proportion * 100, 1), "moe90": None}
+
     variance_component = owner_occupied_units_moe**2 - proportion**2 * occupied_units_moe**2
     if variance_component < 0:
         variance_component = owner_occupied_units_moe**2 + proportion**2 * occupied_units_moe**2

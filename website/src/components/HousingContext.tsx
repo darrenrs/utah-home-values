@@ -41,14 +41,16 @@ function HousingContext({
   homeValueStats: ValueStats;
 }) {
   const medianHomeValue = homeValueStats.percentiles[49];
-  const medianHouseholdIncome = acsValues?.medianHouseholdIncome;
+  const income = acsValues?.medianHouseholdIncome.estimate ?? null;
+  const incomeMoe = acsValues?.medianHouseholdIncome.moe90 ?? null;
+  const ownerShare = acsValues?.ownerOccupiedPercent.estimate ?? null;
+  const ownerShareMoe = acsValues?.ownerOccupiedPercent.moe90 ?? null;
+  const hasIncome =
+    typeof income === "number" &&
+    income > 0 &&
+    typeof medianHomeValue === "number";
 
-  if (
-    !acsValues ||
-    typeof medianHomeValue !== "number" ||
-    !medianHouseholdIncome ||
-    medianHouseholdIncome.estimate - medianHouseholdIncome.moe90 <= 0
-  ) {
+  if (!hasIncome && ownerShare === null) {
     return (
       <section className="metric-section">
         <h3 className="metric-section-title">Housing Context</h3>
@@ -59,13 +61,14 @@ function HousingContext({
     );
   }
 
-  const ratio = medianHomeValue / medianHouseholdIncome.estimate;
-  const ratioLower =
-    medianHomeValue /
-    (medianHouseholdIncome.estimate + medianHouseholdIncome.moe90);
-  const ratioUpper =
-    medianHomeValue /
-    (medianHouseholdIncome.estimate - medianHouseholdIncome.moe90);
+  const ratio = hasIncome ? medianHomeValue / income : null;
+  const ratioBounds =
+    hasIncome && incomeMoe !== null && income - incomeMoe > 0
+      ? {
+          lower: medianHomeValue / (income + incomeMoe),
+          upper: medianHomeValue / (income - incomeMoe),
+        }
+      : null;
 
   return (
     <section className="metric-section">
@@ -83,41 +86,49 @@ function HousingContext({
         <article className="context-card">
           <h4>Median Household Income</h4>
           <p className="context-value">
-            {formatCurrency(medianHouseholdIncome.estimate)}
+            {hasIncome ? formatCurrency(income) : "Not available"}
           </p>
-          <p className="context-ci">
-            {confidenceInterval(
-              medianHouseholdIncome.estimate,
-              medianHouseholdIncome.moe90,
-              formatCurrency,
-              { min: 0 },
-            )}
-          </p>
+          {hasIncome && incomeMoe !== null && (
+            <p className="context-ci">
+              {confidenceInterval(income, incomeMoe, formatCurrency, {
+                min: 0,
+              })}
+            </p>
+          )}
         </article>
 
         <article className="context-card">
           <h4>Median Home Value / Income</h4>
-          <p className="context-value">{formatRatio(ratio)}</p>
-          <p className="context-ci">
-            {affordabilityDescription(ratio)}
-            <br />
-            90% CI: {formatRatio(ratioLower)}-{formatRatio(ratioUpper)}
+          <p className="context-value">
+            {ratio !== null ? formatRatio(ratio) : "Not available"}
           </p>
+          {ratio !== null && (
+            <p className="context-ci">
+              {affordabilityDescription(ratio)}
+              {ratioBounds && (
+                <>
+                  <br />
+                  90% CI: {formatRatio(ratioBounds.lower)}-
+                  {formatRatio(ratioBounds.upper)}
+                </>
+              )}
+            </p>
+          )}
         </article>
 
         <article className="context-card">
           <h4>Owner-Occupied Housing Share</h4>
           <p className="context-value">
-            {formatPercent(acsValues.ownerOccupiedPercent.estimate)}
+            {ownerShare !== null ? formatPercent(ownerShare) : "Not available"}
           </p>
-          <p className="context-ci">
-            {confidenceInterval(
-              acsValues.ownerOccupiedPercent.estimate,
-              acsValues.ownerOccupiedPercent.moe90,
-              formatPercent,
-              { min: 0, max: 100 },
-            )}
-          </p>
+          {ownerShare !== null && ownerShareMoe !== null && (
+            <p className="context-ci">
+              {confidenceInterval(ownerShare, ownerShareMoe, formatPercent, {
+                min: 0,
+                max: 100,
+              })}
+            </p>
+          )}
         </article>
       </div>
     </section>

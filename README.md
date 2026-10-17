@@ -86,21 +86,40 @@ A [live service](https://opendata.gis.utah.gov/datasets/utah-housing-unit-invent
 
 As part of the pipeline, outlier or non-single-family records from this dataset are dropped. The filters include:
 ```
-- SUBTYPE in {single_family, townhome, condo}
+- SUBTYPE = single_family
 - IS_OUG != 1
 - UNIT_COUNT = 1
-- 10_000 <= TOT_VALUE <= 20_000_000
-- 100 <= TOT_BD_FT2 <= 30_000
+- 50_000 <= TOT_VALUE <= 20_000_000
+- TOT_BD_FT2 <= 30_000 (missing or zero is allowed, see below)
 - 0 < ACRES <= 100
+- ACRES >= 0.05 for homes built in 2000 or later
+- no other kept record shares an identical parcel footprint
 ```
+
+Townhomes and condos are excluded because counties report them inconsistently: most counties submit them as grouped records (`IS_OUG = 1` and/or `UNIT_COUNT > 1`), while Utah County submits them as individual units. Including them would make cross-county comparisons inconsistent. The lot-size floor and shared-footprint rule remove townhome, twin-home, and PUD units that are subtyped as `single_family`. Homes built before 2000 are exempt from the lot-size floor because small older lots are mostly genuine detached cottages.
+
+Square footage (`TOT_BD_FT2`) is not comparable across counties: some report above-grade area only, others include basements. It is therefore not used as a measure, and it is often missing for recent builds whose values are already complete. A home with missing or zero square footage is kept only if its value is at least 50% of the median value of homes *with* square footage in the same county, city, and build year (or the same county and build year when the city has fewer than 10 such homes). This keeps finished homes and excludes unfinished homes carrying land-only or partial values.
+
+Places and ZIP Code Tabulation Areas with fewer than 20 matching homes are not published, because their percentiles would effectively describe individual parcels.
+
+Places and ZIP Code Tabulation Areas can span counties with different assessment years. A geography only gets an assessed year when at least 90% of its homes share that year (the same rule the Polygon API uses). Otherwise the website hides its assessed view, because values from different assessment years aren't comparable.
 
 ### Utah Assessment/Sales Ratio Studies
 
 Assessment/Sales ratios are provided by the Utah State Tax Commission. The reference year depends on the year that the assessed value is associated with, which can be found in `config/counties.yml`. The most recent report, concerning fiscal year 2024, was published in 2025, and is available here: https://files.tax.utah.gov/propertytax/srs/srs2025.pdf.
 
-## FHFA House Price Index
+### FHFA House Price Index
 
-The FHFA All-Transactions House Price Index, provided by the Federal Reserve Bank of St. Louis (FRED), is the ratio of a given year's sales price to the average sales price in Q1 1980. This is used to calculate more recent value estimates than are available in the HUI LIR.
+The FHFA All-Transactions House Price Index, provided by the Federal Reserve Bank of St. Louis (FRED), is a repeat-sales index of single-family home prices. It is used to bring each county's assessed values forward to estimated 2025 market values.
+
+Utah assesses property as of January 1 of the assessment year, but FHFA county indices are only published annually, as calendar-year averages. So each county's `hpi_ratio` in `config/counties.yml` combines the county annual index with a timing correction from the metro-area quarterly index:
+
+```
+hpi_ratio = [county_annual(2025) / county_annual(Y)] * [metro_avg(Y) / metro_jan1(Y)]
+metro_jan1(Y) = mean(metro Q4 of Y-1, metro Q1 of Y)
+```
+
+Here `Y` is the county's `assessed_value_year`. The source series and values for each county are recorded as comments in `config/counties.yml`. Washington County's assessed values (2026) are newer than the latest county annual index, so its ratio uses the St. George metro quarterly index only.
 
 ### Census TIGER/Line Shapefiles
 

@@ -1,10 +1,13 @@
 import geopandas as gpd
+import pandas as pd
 import pytest
 from shapely.geometry import Point
 
 from pipeline.generate_data import (
     DATASET_FILENAMES,
+    drop_small_geographies,
     filter_valid_housing_units,
+    geography_assessed_value_years,
     publish_json_payloads,
     validate_generated_housing_payloads,
 )
@@ -94,6 +97,162 @@ def test_filter_valid_housing_units_allows_missing_is_oug_column():
 
     assert len(valid_records) == 1
     assert valid_records.iloc[0]["MARKET_ADJUSTED_VALUE"] == pytest.approx(527_777.78)
+
+
+def test_filter_valid_housing_units_keeps_only_single_family():
+    records = make_housing_source_records()
+    records = gpd.GeoDataFrame(
+        records.loc[records.index.repeat(3)].reset_index(drop=True),
+        crs=records.crs,
+    )
+    records["SUBTYPE"] = ["single_family", "townhome", "condo"]
+    county_quality = {
+        "Salt Lake": {
+            "is_valid": True,
+            "is_wasatch_front": True,
+            "latest_year_built_with_value": 2024,
+            "assessment_sales_ratio": 0.9,
+        },
+    }
+
+    valid_records = filter_valid_housing_units(records, county_quality)
+
+    assert valid_records["SUBTYPE"].tolist() == ["single_family"]
+
+
+SALT_LAKE_COUNTY_QUALITY = {
+    "Salt Lake": {
+        "is_valid": True,
+        "is_wasatch_front": True,
+        "latest_year_built_with_value": 2024,
+        "assessment_sales_ratio": 0.9,
+    },
+}
+
+
+def make_housing_source_records_at(points, **overrides):
+    records = make_housing_source_records()
+    records = gpd.GeoDataFrame(
+        records.loc[records.index.repeat(len(points))].reset_index(drop=True),
+        geometry=list(points),
+        crs=records.crs,
+    )
+    for column, values in overrides.items():
+        records[column] = values
+    return records
+
+
+def test_filter_valid_housing_units_excludes_small_lots_built_since_2000():
+    records = make_housing_source_records_at(
+        [Point(-111.9, 40.7), Point(-111.8, 40.6)],
+        ACRES=[0.04, 0.05],
+        APX_BLT_YR=[2005, 2005],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert valid_records["ACRES"].tolist() == [0.05]
+
+
+def test_filter_valid_housing_units_keeps_small_lots_built_before_2000():
+    records = make_housing_source_records_at(
+        [Point(-111.9, 40.7), Point(-111.8, 40.6)],
+        ACRES=[0.04, 0.04],
+        APX_BLT_YR=[1999, 2000],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert valid_records["APX_BLT_YR"].tolist() == [1999]
+
+
+def test_filter_valid_housing_units_excludes_values_under_50k():
+    records = make_housing_source_records_at(
+        [Point(-111.9, 40.7), Point(-111.8, 40.6)],
+        TOT_VALUE=[49_999, 50_000],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert valid_records["TOT_VALUE"].tolist() == [50_000]
+
+
+def distinct_points(count):
+    return [Point(-111.9 + index * 0.001, 40.7) for index in range(count)]
+
+
+def test_filter_valid_housing_units_compares_missing_sqft_to_city_cohort():
+    # Ten homes with square footage set a $500,000 cohort median. Of the two
+    # without square footage, $250,000 (50%) is kept and $240,000 is dropped.
+    records = make_housing_source_records_at(
+        distinct_points(12),
+        CITY=["Lehi"] * 12,
+        TOT_BD_FT2=[2_200] * 10 + [0, None],
+        TOT_VALUE=[500_000] * 10 + [250_000, 240_000],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert len(valid_records) == 11
+    assert 240_000 not in valid_records["TOT_VALUE"].tolist()
+
+
+def test_filter_valid_housing_units_falls_back_to_county_cohort_for_small_cities():
+    # Highland has only three homes with square footage, so its home without
+    # square footage is compared to the county and build-year median ($400,000)
+    # instead of Highland's $1,000,000.
+    records = make_housing_source_records_at(
+        distinct_points(13),
+        CITY=["Highland"] * 3 + ["Lehi"] * 9 + ["Highland"],
+        TOT_BD_FT2=[2_200] * 12 + [0],
+        TOT_VALUE=[1_000_000] * 3 + [400_000] * 9 + [300_000],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert 300_000 in valid_records["TOT_VALUE"].tolist()
+
+
+def test_filter_valid_housing_units_drops_missing_sqft_without_cohort():
+    records = make_housing_source_records_at(
+        distinct_points(2),
+        APX_BLT_YR=[1998, 1999],
+        TOT_BD_FT2=[2_200, 0],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert valid_records["APX_BLT_YR"].tolist() == [1998]
+
+
+def test_filter_valid_housing_units_excludes_shared_footprints():
+    records = make_housing_source_records_at(
+        [Point(-111.9, 40.7), Point(-111.9, 40.7), Point(-111.8, 40.6)],
+        TOT_VALUE=[400_000, 410_000, 500_000],
+    )
+
+    valid_records = filter_valid_housing_units(records, SALT_LAKE_COUNTY_QUALITY)
+
+    assert valid_records["TOT_VALUE"].tolist() == [500_000]
+
+
+def test_drop_small_geographies_requires_at_least_20_records():
+    stats = pd.DataFrame({"PLACE_GEOID": ["a", "b"], "n": [19, 20]})
+
+    published = drop_small_geographies(stats)
+
+    assert published["PLACE_GEOID"].tolist() == ["b"]
+
+
+def test_geography_assessed_value_years_requires_90_percent_share():
+    matched = pd.DataFrame({
+        "PLACE_GEOID": ["a"] * 10 + ["b"] * 10,
+        "assessed_value_year": [2024] * 9 + [2023] + [2024] * 8 + [2023] * 2,
+    })
+
+    years = geography_assessed_value_years(matched, "PLACE_GEOID")
+
+    assert years == {"a": 2024, "b": None}
 
 
 def test_rejects_missing_required_housing_source_value():

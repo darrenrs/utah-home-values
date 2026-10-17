@@ -45,6 +45,12 @@ DATASET_FILENAMES = {
 MAX_POLYGON_VERTICES = 10_000
 MAX_POLYGON_REPAIR_AREA_DELTA_RATIO = 0.01
 PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE = 0.9
+MIN_SINGLE_FAMILY_ACRES = 0.05
+SMALL_LOT_EXEMPT_BEFORE_YEAR = 2000
+MIN_PUBLISHED_GEOGRAPHY_RECORD_COUNT = 20
+MIN_RECORDED_BUILDING_SQFT = 100
+MISSING_SQFT_MIN_COHORT_VALUE_SHARE = 0.5
+MIN_CITY_COHORT_SIZE = 10
 
 
 def slugify(value: str):
@@ -54,6 +60,22 @@ def slugify(value: str):
 def geography_id(namespace: str, source_id: str):
     normalized_id = slugify(str(source_id)) if namespace == "county" else str(source_id)
     return f"{namespace}:{normalized_id}"
+
+
+# Places and ZIP codes with too few homes produce unreliable percentiles that
+# effectively describe individual parcels, so they are not published.
+def drop_small_geographies(stats: pd.DataFrame):
+    return stats[stats["n"] >= MIN_PUBLISHED_GEOGRAPHY_RECORD_COUNT].reset_index(drop=True)
+
+
+# Places and ZIP codes may mix counties with different assessment years. Like
+# custom areas in the API, they only get an assessed year when at least 90% of
+# their homes share it; otherwise assessed values are not comparable.
+def geography_assessed_value_years(matched: pd.DataFrame, id_col: str):
+    return {
+        geography: primary_assessed_value_year(group, PRIMARY_ASSESSED_VALUE_YEAR_MIN_SHARE)
+        for geography, group in matched.groupby(id_col)
+    }
 
 
 def join_shapefile(
@@ -94,13 +116,16 @@ def join_shapefile(
         .set_index(id_col)["COUNTY"]
     )
 
+    assessed_value_years = geography_assessed_value_years(matched, id_col)
+
     raw_stats = summarize_grouped_values(matched, group_cols, "TOT_VALUE")
     adjusted_stats = summarize_grouped_values(matched, group_cols, "MARKET_ADJUSTED_VALUE")
 
     for stats in (raw_stats, adjusted_stats):
         stats["PRIMARY_COUNTY"] = stats[id_col].map(primary_counties)
+        stats["ASSESSED_VALUE_YEAR"] = stats[id_col].map(assessed_value_years)
 
-    return raw_stats, adjusted_stats
+    return drop_small_geographies(raw_stats), drop_small_geographies(adjusted_stats)
 
 
 def load_county_quality():
@@ -124,21 +149,31 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
         hui_raw["IS_OUG_CLEAN"] = 0
 
     hui_candidate = hui_raw[
-        # Owner-unit-like residential records: single-family homes, townhomes, and condos
-        hui_raw["SUBTYPE"].isin(["single_family", "townhome", "condo"])
+        # Detached single-family homes only. Townhomes and condos are reported
+        # inconsistently across counties (mostly grouped outside Utah County).
+        (hui_raw["SUBTYPE"] == "single_family")
         # Not an owned-unit grouping. Null is treated as non-OUG.
         & (hui_raw["IS_OUG_CLEAN"].fillna(0) != 1)
         # One dwelling unit represented by the record
         & (hui_raw["UNIT_COUNT"] == 1)
-        # Plausible assessed value range
-        & (hui_raw["TOT_VALUE"] >= 10_000)
+        # Plausible assessed value range. Values under $50,000 are mostly
+        # land-only or partial assessments; low-cost areas such as Wendover
+        # have many genuine homes between $50,000 and $100,000.
+        & (hui_raw["TOT_VALUE"] >= 50_000)
         & (hui_raw["TOT_VALUE"] <= 20_000_000)
-        # Plausible building square footage range
-        & (hui_raw["TOT_BD_FT2"] >= 100)
-        & (hui_raw["TOT_BD_FT2"] <= 30_000)
+        # Implausibly large building square footage. Missing or zero square
+        # footage is handled by drop_partial_values_missing_sqft.
+        & ~(hui_raw["TOT_BD_FT2"] > 30_000)
         # Plausible acreage
         & (hui_raw["ACRES"] > 0)
         & (hui_raw["ACRES"] <= 100)
+        # Lots under 0.05 acres built since 2000 are mostly townhome, twin-home,
+        # or PUD units subtyped as single_family. Older small lots are mostly
+        # genuine detached cottages, so they are exempt.
+        & (
+            (hui_raw["ACRES"] >= MIN_SINGLE_FAMILY_ACRES)
+            | (hui_raw["APX_BLT_YR"] < SMALL_LOT_EXEMPT_BEFORE_YEAR)
+        )
     ].copy()
 
     quality_df = (
@@ -163,11 +198,55 @@ def filter_valid_housing_units(hui_raw: gpd.GeoDataFrame, county_quality):
         & (hui_candidate["assessment_sales_ratio"].notna())
     ].copy()
 
+    # Records that share an identical parcel footprint are stacked or grouped
+    # units rather than separate detached homes.
+    footprints = hui_valid.geometry.to_wkb()
+    hui_valid = hui_valid[~(footprints.notna() & footprints.duplicated(keep=False))].copy()
+    hui_valid = drop_partial_values_missing_sqft(hui_valid)
+
     hui_valid["MARKET_ADJUSTED_VALUE"] = (
         hui_valid["TOT_VALUE"] / hui_valid["assessment_sales_ratio"] * hui_valid["hpi_ratio"]
     )
 
     return hui_valid
+
+
+# Square footage is often missing for recent builds whose values are already
+# complete, but in some exports it is missing for unfinished homes carrying
+# land-only or partial values. Keep a home without recorded square footage only
+# if its value is at least half the median for homes with square footage in the
+# same county, city, and build year (or county and build year when that city
+# cohort is small). Homes with no cohort to compare against are dropped.
+def drop_partial_values_missing_sqft(hui_valid: pd.DataFrame):
+    missing_sqft = ~(hui_valid["TOT_BD_FT2"] >= MIN_RECORDED_BUILDING_SQFT)
+    city = hui_valid["CITY"].fillna("") if "CITY" in hui_valid else ""
+    homes = pd.DataFrame(
+        {
+            "COUNTY": hui_valid["COUNTY"],
+            "CITY": city,
+            "APX_BLT_YR": hui_valid["APX_BLT_YR"],
+            "TOT_VALUE": hui_valid["TOT_VALUE"],
+        },
+        index=hui_valid.index,
+    )
+    peers = homes[~missing_sqft]
+    city_cohorts = peers.groupby(["COUNTY", "CITY", "APX_BLT_YR"])["TOT_VALUE"].agg(
+        city_median="median", city_size="size"
+    )
+    year_cohorts = peers.groupby(["COUNTY", "APX_BLT_YR"])["TOT_VALUE"].median().rename(
+        "year_median"
+    )
+    homes = homes.join(city_cohorts, on=["COUNTY", "CITY", "APX_BLT_YR"]).join(
+        year_cohorts, on=["COUNTY", "APX_BLT_YR"]
+    )
+    cohort_median = homes["city_median"].where(
+        homes["city_size"] >= MIN_CITY_COHORT_SIZE, homes["year_median"]
+    )
+    keep = ~missing_sqft | (
+        homes["TOT_VALUE"] >= MISSING_SQFT_MIN_COHORT_VALUE_SHARE * cohort_median
+    )
+
+    return hui_valid[keep].copy()
 
 
 def load_housing_units():
@@ -561,9 +640,6 @@ def main():
     place_raw_stats, place_adjusted_stats = join_shapefile(
         hui_valid, SHAPEFILE_PLACE_ZIP_PATH, column_mappings_place, "PLACE_GEOID"
     )
-    place_raw_stats["ASSESSED_VALUE_YEAR"] = place_raw_stats["PRIMARY_COUNTY"].map(
-        county_assessed_value_years
-    )
 
     column_mappings_zcta5 = {
         "ZCTA5CE20": "ZCTA5_GEOID",
@@ -572,9 +648,6 @@ def main():
 
     zcta5_raw_stats, zcta5_adjusted_stats = join_shapefile(
         hui_valid, SHAPEFILE_ZCTA5_ZIP_PATH, column_mappings_zcta5, "ZCTA5_GEOID"
-    )
-    zcta5_raw_stats["ASSESSED_VALUE_YEAR"] = zcta5_raw_stats["PRIMARY_COUNTY"].map(
-        county_assessed_value_years
     )
 
     geography_catalog = build_geography_catalog(

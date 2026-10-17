@@ -25,10 +25,13 @@ function AboutPage() {
                   <p>
                     The Utah Housing Unit Inventory dataset, which includes
                     reliable data for seven primarily urban counties in Utah, is
-                    the initial source of truth. Outlier records and
-                    non-single-family units are filtered out; some townhomes and
-                    condos are kept if there is evidence that they are
-                    single-unit dwellings. The original assessed values are
+                    the initial source of truth. Outlier records and all
+                    non-single-family units are filtered out. Townhomes and
+                    condos are excluded because counties report them
+                    inconsistently, which would make cross-county comparisons
+                    unreliable. Lots under 0.05 acres built since 2000 and
+                    parcels whose footprint is shared with another record are
+                    also excluded, since these are usually attached units. The original assessed values are
                     adjusted to estimated 2025 market values based on
                     county-level assessment/sales ratios and the federal House
                     Price Index.
@@ -113,16 +116,20 @@ function AboutPage() {
                   <p>
                     The House Price Index ratios use the FHFA All-Transactions
                     House Price Index and are provided by the Federal Reserve
-                    Bank of St. Louis (FRED). The ratio used is the 2025 value
-                    divided by the county's <code>assessed_value_year</code>. (
+                    Bank of St. Louis (FRED). Assessed values are as of January
+                    1, so each ratio combines the county's annual index (2025
+                    divided by its <code>assessed_value_year</code>;{" "}
                     <a href="https://fred.stlouisfed.org/series/ATNHPIUS49011A">
-                      Example link for Davis County
+                      example for Davis County
                     </a>
-                    .)
-                    (Please note that Washington County's assessed values are more recent than the available HPI ratios, so the ratio has been set to 1 until the data are available.)
+                    ) with a timing correction from the metro-area quarterly
+                    index (FHFA does not publish quarterly county indices).
+                    Washington County's 2026 assessed values are newer than the
+                    latest county index, so its ratio uses the St. George metro
+                    quarterly index only.
                   </p>
                   <p>
-                    <strong>Last updated</strong>: March 31, 2026
+                    <strong>Last updated</strong>: October 16, 2026
                   </p>
                 </article>
                 <article className="copy-card">

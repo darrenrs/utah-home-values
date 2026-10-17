@@ -2,175 +2,227 @@ import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
 import PageTitle from "../components/PageTitle";
 
+const SECTIONS = [
+  { id: "how-it-works", label: "How it works" },
+  { id: "sources", label: "Sources" },
+  { id: "limitations", label: "Limitations" },
+];
+
+const SOURCES = [
+  {
+    name: "Utah Housing Unit Inventory",
+    href: "https://gis.utah.gov/products/sgid/planning/housing-unit-inventory/",
+    publisher: "Utah Geospatial Resource Center",
+    usedFor: "Parcel records, assessed values, year built, lot size",
+    updated: "October 14, 2026",
+  },
+  {
+    name: "Assessment/Sales Ratio Studies",
+    href: "https://files.tax.utah.gov/propertytax/srs/srs2025.pdf",
+    publisher: "Utah State Tax Commission",
+    usedFor:
+      "How assessed values compare with sale prices in each county (2024 study for Utah County, 2025 for Davis, Morgan, Salt Lake, Tooele and Weber, 2026 as a stand-in for Washington)",
+    updated: "2026",
+  },
+  {
+    name: "FHFA House Price Index",
+    href: "https://fred.stlouisfed.org/series/ATNHPIUS49011A",
+    publisher: "FHFA via FRED",
+    usedFor:
+      "Price changes from each county's assessment date to the 2025 average (county annual and metro quarterly series)",
+    updated: "October 16, 2026",
+  },
+  {
+    name: "TIGER/Line Shapefiles (2024)",
+    href: "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2024.html",
+    publisher: "U.S. Census Bureau",
+    usedFor: "City, CDP and ZIP Code Tabulation Area boundaries",
+    updated: "September 25, 2024",
+  },
+  {
+    name: "American Community Survey, 2020–2024",
+    href: "https://www.census.gov/data/developers.html",
+    publisher: "U.S. Census Bureau",
+    usedFor:
+      "Median household income (B19013) and owner-occupied share (B25003)",
+    updated: "January 29, 2026",
+  },
+];
+
 function AboutPage() {
   return (
     <>
-      <PageTitle title="About | Utah Home Value Explorer" />
+      <PageTitle title="About | Utah Home Values Explorer" />
       <div className="page-shell">
         <SiteHeader />
 
         <main className="container">
-          <div className="page-stack">
-            <div className="about-intro">
-              <p className="eyebrow">Utah Home Values</p>
-              <h1>Data/Methodology</h1>
-              <p>Data sources and methodology for Utah Home Values Explorer.</p>
+          <div className="about-layout">
+            <nav className="about-toc" aria-label="On this page">
+              <p className="eyebrow">On this page</p>
+              <ol>
+                {SECTIONS.map((section) => (
+                  <li key={section.id}>
+                    <a href={`#${section.id}`}>{section.label}</a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+
+            <div className="about-content">
+              <div className="about-intro">
+                <p className="eyebrow">Utah Home Values</p>
+                <h1>Data &amp; Methodology</h1>
+                <p className="about-lede">
+                  Every value on this site starts as a county assessor's record.
+                  Here is how those records become comparable market estimates,
+                  and where each number comes from.
+                </p>
+              </div>
+
+              <section className="about-section" id="how-it-works">
+                <h2>How it works</h2>
+                <ol className="about-steps">
+                  <li>
+                    <h3>Start from parcel records</h3>
+                    <p>
+                      The Utah Housing Unit Inventory lists every housing parcel
+                      that county assessors report. It has reliable values for
+                      seven counties: Davis, Morgan, Salt Lake, Tooele, Utah,
+                      Washington and Weber.
+                    </p>
+                  </li>
+                  <li>
+                    <h3>Keep comparable single-family homes</h3>
+                    <ul>
+                      <li>
+                        Detached single-family homes only. Counties report
+                        townhomes and condos inconsistently.
+                      </li>
+                      <li>
+                        One unit per record, assessed between $50,000 and $20
+                        million, on up to 100 acres.
+                      </li>
+                      <li>
+                        Lots under 0.05 acres built since 2000 and records
+                        sharing a parcel footprint are dropped as likely
+                        attached units.
+                      </li>
+                      <li>
+                        Homes missing square footage are kept only if their
+                        value looks complete next to similar homes nearby.
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <h3>Convert assessed values to market values</h3>
+                    <p className="about-formula">
+                      market value = assessed value ÷ assessment/sales ratio ×
+                      house price index change
+                    </p>
+                    <ul>
+                      <li>
+                        The assessment/sales ratio corrects for how far each
+                        county's assessments run below or above sale prices.
+                      </li>
+                      <li>
+                        The house price index change moves each county from its
+                        January 1 assessment date to the 2025 average.
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <h3>Group homes into areas</h3>
+                    <ul>
+                      <li>
+                        Each parcel is placed in the Census city, CDP and ZIP
+                        Code Tabulation Area that contains it. This catches
+                        unincorporated communities that a city name field would
+                        miss.
+                      </li>
+                      <li>Areas with fewer than 20 homes are not published.</li>
+                      <li>
+                        An area shows assessed values only when at least 90% of
+                        its homes share one assessment year.
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <h3>Add context</h3>
+                    <p>
+                      American Community Survey estimates add median household
+                      income and the share of homes that are owner-occupied, for
+                      a simple affordability comparison.
+                    </p>
+                  </li>
+                </ol>
+              </section>
+
+              <section className="about-section" id="sources">
+                <h2>Sources</h2>
+                <table className="sources-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Source</th>
+                      <th scope="col">Used for</th>
+                      <th scope="col">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SOURCES.map((source) => (
+                      <tr key={source.name}>
+                        <th scope="row">
+                          <a href={source.href}>{source.name}</a>
+                          <span>{source.publisher}</span>
+                        </th>
+                        <td>{source.usedFor}</td>
+                        <td className="sources-updated">{source.updated}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="about-note">
+                  Ratio studies by year:{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2024.pdf">
+                    2024
+                  </a>
+                  ,{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2025.pdf">
+                    2025
+                  </a>
+                  ,{" "}
+                  <a href="https://files.tax.utah.gov/propertytax/srs/srs2026.pdf">
+                    2026
+                  </a>
+                  . ACS tables:{" "}
+                  <a href="https://data.census.gov/table?q=B19013">B19013</a>,{" "}
+                  <a href="https://data.census.gov/table?q=B25003">B25003</a>.
+                </p>
+              </section>
+
+              <section className="about-section" id="limitations">
+                <h2>Limitations</h2>
+                <ul>
+                  <li>
+                    These are statistical estimates for groups of homes, not
+                    appraisals of any one home.
+                  </li>
+                  <li>
+                    Counties assess in different years, so assessed values are
+                    only comparable within a county. Use market-adjusted values
+                    to compare across counties.
+                  </li>
+                  <li>
+                    The newest homes appear only once their county has assessed
+                    them in full.
+                  </li>
+                  <li>
+                    Building square footage isn't used as a measure, because
+                    some counties include basements and others don't.
+                  </li>
+                </ul>
+              </section>
             </div>
-
-            <section className="page-section">
-              <h2>Data Pipeline</h2>
-              <div className="method-grid">
-                <article className="copy-card">
-                  <h3 className="copy-card-title">Source Data</h3>
-                  <p>
-                    The Utah Housing Unit Inventory dataset, which includes
-                    reliable data for seven primarily urban counties in Utah, is
-                    the initial source of truth. Outlier records and all
-                    non-single-family units are filtered out. Townhomes and
-                    condos are excluded because counties report them
-                    inconsistently, which would make cross-county comparisons
-                    unreliable. Lots under 0.05 acres built since 2000 and
-                    parcels whose footprint is shared with another record are
-                    also excluded, since these are usually attached units. The original assessed values are
-                    adjusted to estimated 2025 market values based on
-                    county-level assessment/sales ratios and the federal House
-                    Price Index.
-                  </p>
-                </article>
-                <article className="copy-card">
-                  <h3 className="copy-card-title">Geographic Assignment</h3>
-                  <p>
-                    To summarize by Place / CDP, all parcels are projected onto
-                    a Census place shapefile coordinate system, converted to a
-                    representative point, and spatially joined to the place
-                    polygon that contains it. This method is superior to the
-                    CITY attribute in the Housing Unit Inventory dataset because
-                    it is immune to misclassification errors and adds
-                    census-designated places (CDPs), which are unincorporated
-                    communities that would not otherwise appear.
-                  </p>
-                </article>
-                <article className="copy-card copy-card-full">
-                  <h3 className="copy-card-title">Housing Context</h3>
-                  <p>
-                    Data from the American Community Survey are also used for a
-                    simple housing affordability analysis. The figures for
-                    median household income and percentage of occupied housing
-                    units that are owner occupied are collected for Utah's
-                    counties, cities, and ZIP Code Tabulation Areas (ZCTAs) and
-                    presented in the website.
-                  </p>
-                </article>
-              </div>
-            </section>
-
-            <section className="page-section">
-              <h2>Sources</h2>
-              <div className="method-grid">
-                <article className="copy-card">
-                  <h3 className="copy-card-title">Housing Unit Inventory</h3>
-                  <p>
-                    All parcel-level/value data are provided for public use by
-                    Utah Open Data as part of the{" "}
-                    <a href="https://gis.utah.gov/products/sgid/planning/housing-unit-inventory/">
-                      Utah Housing Unit Inventory
-                    </a>{" "}
-                    dataset. Parcels which correspond to single- and
-                    multi-family housing units are aggregated by county
-                    assessors and submitted to the dataset. The dataset
-                    currently includes the core Wasatch Front — Salt Lake, Utah,
-                    Davis, and Weber counties — along with Tooele, Morgan, and
-                    Washington counties.
-                  </p>
-                  <p>
-                    <strong>Last updated</strong>: October 14, 2026
-                  </p>
-                </article>
-                <article className="copy-card">
-                  <h3 className="copy-card-title">Assessment/Sales Ratios</h3>
-                  <p>
-                    Assessment/Sales ratios are provided by the Utah State Tax
-                    Commission. The reference year depends on the year that the
-                    assessed value is associated with. Please refer to these
-                    documents for specific values:{" "}
-                    <a href="https://files.tax.utah.gov/propertytax/srs/srs2026.pdf">
-                      Washington County (2025 figures temporarily used for 2026 data)
-                    </a>
-                    ,{" "}
-                    <a href="https://files.tax.utah.gov/propertytax/srs/srs2025.pdf">
-                      Davis, Morgan, Salt Lake, Tooele, and Weber Counties (2024
-                      data)
-                    </a>
-                    ,{" "}
-                    <a href="https://files.tax.utah.gov/propertytax/srs/srs2024.pdf">
-                      Utah County (2023 data)
-                    </a>
-                    .
-                  </p>
-                  <p>
-                    <strong>Last updated</strong>: 2026
-                  </p>
-                </article>
-                <article className="copy-card">
-                  <h3 className="copy-card-title">House Price Index Ratios</h3>
-                  <p>
-                    The House Price Index ratios use the FHFA All-Transactions
-                    House Price Index and are provided by the Federal Reserve
-                    Bank of St. Louis (FRED). Assessed values are as of January
-                    1, so each ratio combines the county's annual index (2025
-                    divided by its <code>assessed_value_year</code>;{" "}
-                    <a href="https://fred.stlouisfed.org/series/ATNHPIUS49011A">
-                      example for Davis County
-                    </a>
-                    ) with a timing correction from the metro-area quarterly
-                    index (FHFA does not publish quarterly county indices).
-                    Washington County's 2026 assessed values are newer than the
-                    latest county index, so its ratio uses the St. George metro
-                    quarterly index only.
-                  </p>
-                  <p>
-                    <strong>Last updated</strong>: October 16, 2026
-                  </p>
-                </article>
-                <article className="copy-card">
-                  <h3 className="copy-card-title">Census Boundaries</h3>
-                  <p>
-                    Place names and boundaries are provided by the U.S. Census
-                    Bureau from the{" "}
-                    <a href="https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2024.html">
-                      2024 Census TIGER/Line Shapefiles
-                    </a>
-                    .
-                  </p>
-                  <p>
-                    <strong>Last updated</strong>: September 25, 2024
-                  </p>
-                </article>
-                <article className="copy-card">
-                  <h3 className="copy-card-title">American Community Survey</h3>
-                  <p>
-                    American Community Survey data from the 2020-2024 5-year
-                    estimates are also provided by the U.S. Census Bureau via
-                    the{" "}
-                    <a href="https://www.census.gov/data/developers.html">
-                      Census API
-                    </a>
-                    . The tables used are{" "}
-                    <a href="https://data.census.gov/table?q=B19013">
-                      Median Household Income in the Past 12 Months (B19013)
-                    </a>{" "}
-                    and{" "}
-                    <a href="https://data.census.gov/table?q=B25003">
-                      Tenure (B25003)
-                    </a>
-                    .
-                  </p>
-                  <p>
-                    <strong>Last updated</strong>: January 29, 2026
-                  </p>
-                </article>
-              </div>
-            </section>
           </div>
         </main>
 

@@ -62,7 +62,7 @@ The Polygon API uses Uvicorn as a server to interface between the FastAPI applic
 
 18. `uvicorn api.app:app --reload`
 
-The website uses `http://127.0.0.1:8000/api` by default. Set `VITE_FASTAPI_BASE_PATH` when the API is hosted elsewhere, such as `https://example.com/projects/utah-home-values/api`.
+In development (`npm run dev`), the website uses `http://127.0.0.1:8000/api` by default. Production builds only enable custom areas when `VITE_FASTAPI_BASE_PATH` is set, such as `https://example.com/projects/utah-home-values/api`.
 
 #### Example Usage
 

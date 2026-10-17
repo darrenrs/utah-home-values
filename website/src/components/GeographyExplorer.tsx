@@ -13,7 +13,8 @@ import type {
   ValueMode,
   ValueStats,
 } from "../data/loadData";
-import { withApiBaseUrl } from "../lib/apiUrl";
+import { isApiConfigured, withApiBaseUrl } from "../lib/apiUrl";
+import { formatCurrency, formatNumber } from "../lib/format";
 import GeographySelector, {
   type GeographyOption,
   type GeographyType,
@@ -56,24 +57,6 @@ const HIGHLIGHTS = [
 ];
 
 const WASATCH_FRONT_ID = "region:wasatch-front";
-
-function formatCurrency(value: number | undefined) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "Not available";
-  }
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    minimumSignificantDigits: 2,
-    maximumSignificantDigits: 3,
-  }).format(value);
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
 
 function sectionForGeoType(geoType: GeographyType): DataSection {
   switch (geoType) {
@@ -338,9 +321,9 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
       ),
       grid: getRootCssValue("--border", "#d6deea"),
       text: getRootCssValue("--muted", "#657083"),
-      line: getRootCssValue("--accent-strong", "#0d5e8a"),
+      line: getRootCssValue("--accent", "#60a5fa"),
       point: getRootCssValue("--surface", "#ffffff"),
-      highlight: getRootCssValue("--warm", "#be6b2d"),
+      highlight: getRootCssValue("--text", "#151923"),
       tooltipBackground: getRootCssValue("--surface", "#ffffff"),
       tooltipText: getRootCssValue("--text", "#151923"),
     };
@@ -376,7 +359,7 @@ function PercentileChart({ points }: { points: PercentilePoint[] }) {
               highlightPercentiles.has(point.percentile) ? 3 : 2,
             ),
             pointHoverRadius: 4,
-            tension: 0.22,
+            cubicInterpolationMode: "monotone",
           },
         ],
       },
@@ -605,6 +588,10 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
   );
 
   useEffect(() => {
+    if (!isApiConfigured) {
+      return undefined;
+    }
+
     let cancelled = false;
 
     fetch(withApiBaseUrl("/health"))
@@ -856,6 +843,10 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                     </button>
                   ))}
                 </div>
+                <p className="value-control-note">
+                  Assessed values use each county's own assessment year, so
+                  they can't be compared across counties.
+                </p>
               </div>
             </div>
           </div>
@@ -908,10 +899,12 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                 </div>
               </section>
 
-              {!customAreaSummary && selectedId !== WASATCH_FRONT_ID && (
+              {!customAreaSummary && activeSelectedId !== WASATCH_FRONT_ID && (
                 <HousingContext
                   acsValues={acsValues.geographies[activeSelectedId]}
-                  homeValueStats={selected}
+                  homeValueStats={
+                    datasets.market[sectionForGeoType(geoType)][activeSelectedId]
+                  }
                 />
               )}
 
@@ -919,7 +912,10 @@ function GeographyExplorer({ dataBundle }: { dataBundle: DataBundle }) {
                 <PercentileChart points={percentilePoints} />
               )}
               <p className="explorer-note">
-                Values are rounded to the nearest $1,000.
+                Values are rounded to the nearest $1,000. To place your own
+                home, look up its assessed value in your county's parcel search,
+                find that percentile in the Assessed view, then switch to
+                Market-adjusted and read the value at the same percentile.
               </p>
             </>
           )}

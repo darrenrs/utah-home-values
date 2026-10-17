@@ -76,11 +76,12 @@ function HousingContext({
       <p className="subheader-description">
         The median home value / median household income ratio is a simple
         measure of local affordability pressure. A higher ratio means home
-        values are high relative to local incomes. As a rough guide, ratios from
-        4.0 to 5.0 indicate high affordability pressure, 5.0 to 6.0 indicate
-        very high pressure, and ratios above 6.0 indicate severe price-income
-        strain. Median household income and owner-occupied housing share are
-        provided for additional context.
+        values are high relative to local incomes. Labels follow the Demographia
+        scale: 3.0 or below is affordable, 3.1 to 4.0 moderately unaffordable,
+        4.1 to 5.0 seriously unaffordable, and above 5.0 severely unaffordable.
+        Incomes are 2020–2024 American Community Survey estimates, so ratios
+        run slightly high. Median household income and owner-occupied housing
+        share are provided for additional context.
       </p>
       <div className="context-grid">
         <article className="context-card">

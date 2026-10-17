@@ -1,16 +1,44 @@
 import { useEffect, useState } from "react";
-import CoverageCards from "../components/CoverageCards";
 import GeographyExplorer from "../components/GeographyExplorer";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { loadData, type DataBundle } from "../data/loadData";
+import {
+  loadData,
+  type AttributeData,
+  type DataBundle,
+} from "../data/loadData";
+import { formatNumber } from "../lib/format";
 import { withBaseUrl } from "../lib/baseUrl";
 import PageTitle from "../components/PageTitle";
 
-function HeroSection() {
+function CoverageStats({ data }: { data: AttributeData }) {
+  const homes = Object.values(data.County).reduce(
+    (total, row) => total + row.n,
+    0,
+  );
+  const stats = [
+    { value: homes, label: "Homes" },
+    { value: Object.keys(data.County).length, label: "Counties" },
+    { value: Object.keys(data.Place).length, label: "Cities & CDPs" },
+    { value: Object.keys(data.ZCTA5).length, label: "ZIP Codes" },
+  ];
+
+  return (
+    <dl className="hero-stats">
+      {stats.map((stat) => (
+        <div key={stat.label} className="hero-stat">
+          <dt>{stat.label}</dt>
+          <dd>{formatNumber(stat.value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function HeroSection({ dataBundle }: { dataBundle?: DataBundle }) {
   return (
     <>
-      <PageTitle title="Utah Home Value Explorer" />
+      <PageTitle title="Utah Home Values Explorer" />
       <section className="hero hero-split hero-split-main-page">
         <div className="stack hero-main-copy">
           <div className="hero-main-title-row">
@@ -27,21 +55,7 @@ function HeroSection() {
             Browse and compare estimated single-family home values across{" "}
             <strong>Utah cities, counties, ZIP codes, and regions</strong>.
           </p>
-          <p>
-            Assessed values are{" "}
-            <strong>reported on a county-by-county basis</strong> and may not
-            reflect the same year; cross-county comparisons of assessed values
-            are not supported at this time.
-          </p>
-          <p>
-            Interested in how much your home is worth? The most reliable
-            estimate besides contacting a real estate agent is to look up your
-            home in your county's <strong>parcel search</strong> tool (Google "X
-            County Parcel Search".) Choose the assessed value for the year shown
-            next to the Assessed button for your county. In the assessed view,
-            find the percentile closest to that value, then switch to
-            Market-adjusted (2025) and read the value at the same percentile.
-          </p>
+          {dataBundle && <CoverageStats data={dataBundle.datasets.market} />}
         </div>
         <div
           className="hero-image-frame hero-image-frame-desktop"
@@ -101,13 +115,10 @@ function HomePage() {
 
       <main className="container">
         <div className="page-stack">
-          <HeroSection />
+          <HeroSection dataBundle={dataBundle} />
 
           {dataBundle ? (
-            <>
-              <GeographyExplorer dataBundle={dataBundle} />
-              <CoverageCards data={dataBundle.datasets.market} />
-            </>
+            <GeographyExplorer dataBundle={dataBundle} />
           ) : (
             <DataStatus errorMessage={errorMessage} />
           )}

@@ -26,40 +26,62 @@ type RankingRow = {
 
 type PercentileEstimate = {
   percentile: number;
-  bound?: "below";
+  bound?: "below" | "above";
 };
 
 function getHomeValue(percentiles: number[], percentile: number) {
   return percentiles[percentile - 1];
 }
 
+// Interpolates linearly between the published 1st-99th percentile values, so
+// places rarely tie on whole percentiles. Values outside that range get a
+// position just below 1 or above 99 so they still sort without ties.
 function estimatePercentile(
   percentiles: number[],
   homeValue: number,
 ): PercentileEstimate {
   if (homeValue < percentiles[0]) {
-    return { percentile: MIN_PERCENTILE, bound: "below" };
+    return { percentile: homeValue / percentiles[0], bound: "below" };
   }
 
-  for (let index = percentiles.length - 1; index >= 0; index -= 1) {
-    if (homeValue >= percentiles[index]) {
-      return { percentile: index + 1 };
+  const lastIndex = percentiles.length - 1;
+  if (homeValue >= percentiles[lastIndex]) {
+    return {
+      percentile: MAX_PERCENTILE + (1 - percentiles[lastIndex] / homeValue),
+      bound: "above",
+    };
+  }
+
+  for (let index = lastIndex - 1; index >= 0; index -= 1) {
+    const lower = percentiles[index];
+    const upper = percentiles[index + 1];
+
+    if (homeValue >= lower) {
+      const fraction =
+        upper > lower ? (homeValue - lower) / (upper - lower) : 0;
+      return { percentile: index + 1 + fraction };
     }
   }
 
-  return { percentile: MAX_PERCENTILE };
+  return { percentile: MIN_PERCENTILE };
 }
 
 function formatPercentileRank({ percentile, bound }: PercentileEstimate) {
   if (bound === "below") {
-    return "≤1%";
+    return "<1%";
   }
 
-  return `${percentile}%`;
+  if (bound === "above") {
+    return "≥99%";
+  }
+
+  // Interpolation is typically within half a percentile point of the exact
+  // rank, so one decimal would overstate the precision.
+  return `${Math.min(MAX_PERCENTILE, Math.max(MIN_PERCENTILE, Math.round(percentile)))}%`;
 }
 
-function getPercentileRankSortValue({ percentile, bound }: PercentileEstimate) {
-  return bound === "below" ? 0 : percentile;
+function getPercentileRankSortValue({ percentile }: PercentileEstimate) {
+  return percentile;
 }
 
 function makeHomeValueRow(
@@ -219,7 +241,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
 
   return (
     <>
-      <PageTitle title="City Rankings | Utah Home Value Explorer" />
+      <PageTitle title="City Rankings | Utah Home Values Explorer" />
       <section className="rankings-shell">
         <div className="rankings-intro">
           <p className="eyebrow">Utah Home Values</p>
@@ -246,7 +268,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
                   aria-pressed={queryMode === "percentile"}
                   onClick={() => setQueryMode("percentile")}
                 >
-                  Percentile
+                  Percentile Rank
                 </button>
               </div>
             </div>
@@ -271,7 +293,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
               </label>
             ) : (
               <label className="control-group">
-                <span className="control-label">Percentile</span>
+                <span className="control-label">Percentile Rank</span>
                 <span className="rank-input-wrap">
                   <input
                     className="rank-query-input"
@@ -298,10 +320,10 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
           >
             {queryMode === "homeValue"
               ? homeValueIsValid
-                ? "Ranks places by the percentile rank of a home at a given value."
+                ? "Shows where a home at this value would fall in each place. Rank 1 is the most expensive market, where this value sits lowest."
                 : `Enter a home value from ${formatCurrency(MIN_HOME_VALUE)} to ${formatCurrency(MAX_HOME_VALUE)}.`
               : percentileIsValid
-                ? "Ranks places by the home value at a given percentile."
+                ? "Ranks places by the home value at this percentile, highest first."
                 : "Enter an integer percentile from 1 to 99."}{" "}
             Only market-adjusted values are supported as these are cross-county
             comparisons.
@@ -348,8 +370,10 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
             </div>
 
             <p className="explorer-note">
-              Values are rounded to the nearest $1,000. Rankings use the
-              published 1st through 99th percentile values.
+              Values are rounded to the nearest $1,000. Percentile ranks are
+              interpolated between the published 1st through 99th percentile
+              values; checked against the raw data, they are typically within
+              half a percentile point of the exact rank.
             </p>
           </article>
         )}

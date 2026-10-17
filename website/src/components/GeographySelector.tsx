@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, type KeyboardEvent } from "react";
 import {
   Button,
   ComboBox,
@@ -8,6 +8,7 @@ import {
   ListBoxItem,
   ListBoxSection,
   Popover,
+  useFilter,
 } from "react-aria-components";
 import type { GeographyMetadata } from "../data/loadData";
 
@@ -48,6 +49,33 @@ function GeographySelector({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([label, rows]) => ({ label, options: rows }));
   }, [geoType, options]);
+  const listBoxRef = useRef<HTMLDivElement>(null);
+  const { contains } = useFilter({ sensitivity: "base" });
+
+  // React Aria only selects on Enter when an option has keyboard focus. If the
+  // user typed a search and pressed Enter without arrowing down, pick the first
+  // match, the same option shown at the top of the list. This runs in the
+  // capture phase, before React Aria handles Enter and clears the focus marker.
+  const handleKeyDownCapture = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    if (listBoxRef.current?.querySelector("[data-focused]")) {
+      return;
+    }
+
+    const query = event.currentTarget.value.trim();
+    const match = query
+      ? groupedOptions
+          .flatMap((group) => group.options)
+          .find((option) => contains(option.label, query))
+      : undefined;
+
+    if (match) {
+      onChange(match.id);
+    }
+  };
 
   return (
     <ComboBox
@@ -62,7 +90,11 @@ function GeographySelector({
       }}
     >
       <div className="geography-selector-control">
-        <Input className="geography-selector-input" placeholder="Search..." />
+        <Input
+          className="geography-selector-input"
+          placeholder="Search..."
+          onKeyDownCapture={handleKeyDownCapture}
+        />
         <Button
           className="geography-selector-button"
           aria-label="Show geographies"
@@ -72,6 +104,7 @@ function GeographySelector({
       </div>
       <Popover className="geography-selector-popover">
         <ListBox
+          ref={listBoxRef}
           className="geography-selector-listbox"
           renderEmptyState={() => (
             <p className="geography-selector-empty">No matching geographies.</p>

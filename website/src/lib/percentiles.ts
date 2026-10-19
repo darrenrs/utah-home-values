@@ -39,19 +39,34 @@ export function estimatePercentile(
   return { percentile: MIN_PERCENTILE };
 }
 
-export function formatPercentileRank({
-  percentile,
-  bound,
-}: PercentileEstimate) {
+// The whole-number percentile shown for an estimate: 0 for "<1%" and 100 for
+// "≥99%". Interpolation is typically within half a percentile point of the
+// exact rank, so one decimal would overstate the precision.
+export function displayedPercentile({ percentile, bound }: PercentileEstimate) {
   if (bound === "below") {
-    return "<1%";
+    return 0;
   }
 
   if (bound === "above") {
+    return 100;
+  }
+
+  return Math.min(
+    MAX_PERCENTILE,
+    Math.max(MIN_PERCENTILE, Math.round(percentile)),
+  );
+}
+
+export function formatPercentileRank(estimate: PercentileEstimate) {
+  const shown = displayedPercentile(estimate);
+
+  if (shown === 0) {
+    return "<1%";
+  }
+
+  if (shown === 100) {
     return "≥99%";
   }
 
-  // Interpolation is typically within half a percentile point of the exact
-  // rank, so one decimal would overstate the precision.
-  return `${Math.min(MAX_PERCENTILE, Math.max(MIN_PERCENTILE, Math.round(percentile)))}%`;
+  return `${shown}%`;
 }

@@ -13,6 +13,7 @@ import { downloadCsv } from "../lib/csv";
 import { formatCurrency, formatNumber } from "../lib/format";
 import {
   estimatePercentile,
+  displayedPercentile,
   formatPercentileRank,
   MAX_PERCENTILE,
   MIN_PERCENTILE,
@@ -42,6 +43,8 @@ type RankingRow = {
   barLabel: string;
   barPosition: number;
   sortValue: number;
+  // Rows with the same displayed value share a rank.
+  tieValue: number;
 };
 
 function getHomeValue(percentiles: number[], percentile: number) {
@@ -70,6 +73,7 @@ function makeHomeValueRow(
     barLabel: formatPercentileRank(estimate),
     barPosition: percentileRankSortValue,
     sortValue: percentileRankSortValue,
+    tieValue: displayedPercentile(estimate),
   };
 }
 
@@ -90,6 +94,7 @@ function makePercentileRow(
     barLabel: formatCurrency(homeValue),
     barPosition: 0,
     sortValue: homeValue,
+    tieValue: homeValue,
   };
 }
 
@@ -196,7 +201,7 @@ function Rankings({ dataBundle }: { dataBundle: DataBundle }) {
     let currentRank = 0;
 
     return displayRows.map((row, index) => {
-      if (index === 0 || row.sortValue !== displayRows[index - 1].sortValue) {
+      if (index === 0 || row.tieValue !== displayRows[index - 1].tieValue) {
         currentRank = index + 1;
       }
 

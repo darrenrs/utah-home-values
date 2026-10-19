@@ -184,6 +184,20 @@ footer {
   font-size: 0.95rem;
 }
 
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.build-commit {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
 footer a,
 .subheader-description a {
   text-decoration: underline;
